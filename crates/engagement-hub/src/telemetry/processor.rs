@@ -47,15 +47,20 @@ impl CountingSpanProcessor {
 
     /// Create a processor with an explicit queue capacity (useful for tests).
     pub fn new_with_capacity<E: SpanExporter + 'static>(
-        _name: &'static str,
+        name: &'static str,
         exporter: E,
         dropped: prometheus::IntCounter,
         capacity: usize,
     ) -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(capacity);
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let handle =
-            tokio::runtime::Handle::current().spawn(run_background(rx, shutdown_rx, exporter));
+        let handle = tokio::runtime::Handle::current().spawn(run_background(
+            name,
+            rx,
+            shutdown_rx,
+            exporter,
+            dropped.clone(),
+        ));
         Self {
             tx,
             shutdown_tx: Mutex::new(Some(shutdown_tx)),
@@ -81,12 +86,15 @@ impl opentelemetry_sdk::trace::SpanProcessor for CountingSpanProcessor {
     }
 
     fn force_flush(&self) -> TraceResult<()> {
-        // Best-effort: nothing to flush synchronously; the background task will
-        // pick up spans on its next tick.
+        // Not implemented: buffered spans in the background task's channel are not drained
+        // synchronously. Spans will be exported on the next 1s tick or at shutdown.
+        // Use `shutdown_telemetry()` (i.e. `SpanProcessor::shutdown`) for a guaranteed flush.
         Ok(())
     }
 
     fn shutdown(&self) -> TraceResult<()> {
+        // Requires a multi-thread Tokio runtime; will panic on the `current_thread` flavor
+        // because `tokio::task::block_in_place` is not supported there.
         // Signal the background task to drain and stop.
         if let Ok(mut guard) = self.shutdown_tx.lock()
             && let Some(tx) = guard.take()
@@ -98,10 +106,12 @@ impl opentelemetry_sdk::trace::SpanProcessor for CountingSpanProcessor {
         if let Ok(mut guard) = self.task_handle.lock()
             && let Some(handle) = guard.take()
         {
+            let rt = tokio::runtime::Handle::try_current().expect(
+                "CountingSpanProcessor::shutdown must be called from within a multi-thread \
+                 Tokio runtime",
+            );
             tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, handle).await;
-                });
+                let _ = rt.block_on(tokio::time::timeout(SHUTDOWN_TIMEOUT, handle));
             });
         }
 
@@ -114,9 +124,11 @@ impl opentelemetry_sdk::trace::SpanProcessor for CountingSpanProcessor {
 // ──────────────────────────────────────────────────────────────────────────────
 
 async fn run_background<E: SpanExporter>(
+    name: &'static str,
     mut rx: tokio::sync::mpsc::Receiver<SpanData>,
     mut shutdown_rx: tokio::sync::oneshot::Receiver<()>,
     mut exporter: E,
+    dropped: prometheus::IntCounter,
 ) {
     let mut batch: Vec<SpanData> = Vec::with_capacity(MAX_BATCH);
     let mut interval = tokio::time::interval(SCHEDULE_DELAY);
@@ -127,14 +139,36 @@ async fn run_background<E: SpanExporter>(
             _ = interval.tick() => {
                 if !batch.is_empty() {
                     let to_send = std::mem::take(&mut batch);
-                    let _ = tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(to_send)).await;
+                    let batch_len = to_send.len();
+                    match tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(to_send)).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(e)) => {
+                            eprintln!("[otel:{name}] export failed: {e}; dropping {batch_len} spans");
+                            dropped.inc_by(batch_len as u64);
+                        }
+                        Err(_) => {
+                            eprintln!("[otel:{name}] export timed out; dropping {batch_len} spans");
+                            dropped.inc_by(batch_len as u64);
+                        }
+                    }
                 }
             }
             Some(span) = rx.recv() => {
                 batch.push(span);
                 if batch.len() >= MAX_BATCH {
                     let to_send = std::mem::take(&mut batch);
-                    let _ = tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(to_send)).await;
+                    let batch_len = to_send.len();
+                    match tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(to_send)).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(e)) => {
+                            eprintln!("[otel:{name}] export failed: {e}; dropping {batch_len} spans");
+                            dropped.inc_by(batch_len as u64);
+                        }
+                        Err(_) => {
+                            eprintln!("[otel:{name}] export timed out; dropping {batch_len} spans");
+                            dropped.inc_by(batch_len as u64);
+                        }
+                    }
                 }
             }
             _ = &mut shutdown_rx => {
@@ -144,11 +178,34 @@ async fn run_background<E: SpanExporter>(
                     batch.push(span);
                     if batch.len() >= MAX_BATCH {
                         let to_send = std::mem::take(&mut batch);
-                        let _ = tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(to_send)).await;
+                        let batch_len = to_send.len();
+                        match tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(to_send)).await {
+                            Ok(Ok(())) => {}
+                            Ok(Err(e)) => {
+                                eprintln!("[otel:{name}] export failed during drain: {e}; dropping {batch_len} spans");
+                                dropped.inc_by(batch_len as u64);
+                            }
+                            Err(_) => {
+                                eprintln!("[otel:{name}] export timed out during drain; dropping {batch_len} spans");
+                                dropped.inc_by(batch_len as u64);
+                            }
+                        }
                     }
                 }
                 if !batch.is_empty() {
-                    let _ = tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(batch)).await;
+                    let batch_len = batch.len();
+                    let final_batch = std::mem::take(&mut batch);
+                    match tokio::time::timeout(EXPORT_TIMEOUT, exporter.export(final_batch)).await {
+                        Ok(Ok(())) => {}
+                        Ok(Err(e)) => {
+                            eprintln!("[otel:{name}] export failed during shutdown: {e}; dropping {batch_len} spans");
+                            dropped.inc_by(batch_len as u64);
+                        }
+                        Err(_) => {
+                            eprintln!("[otel:{name}] export timed out during shutdown; dropping {batch_len} spans");
+                            dropped.inc_by(batch_len as u64);
+                        }
+                    }
                 }
                 exporter.shutdown();
                 return;

@@ -110,7 +110,11 @@ pub struct Config {
     #[arg(long, env = "OTEL_EXPORT_LOCAL", default_value_t = false)]
     pub otel_export_local: bool,
 
-    #[arg(long, env = "OTEL_GRAFANA_ENDPOINT", default_value = "http://localhost:4317")]
+    #[arg(
+        long,
+        env = "OTEL_GRAFANA_ENDPOINT",
+        default_value = "http://localhost:4317"
+    )]
     pub otel_grafana_endpoint: String,
 
     #[arg(
@@ -134,6 +138,8 @@ pub enum ConfigError {
     ProdStubWithoutIdle,
     #[error("EH_DB_STATEMENT_TIMEOUT_MS=0 disables the statement timeout entirely; set to >= 1")]
     StatementTimeoutDisabled,
+    #[error("OTEL_EXPORT_LANGFUSE=true requires both LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY")]
+    LangfuseKeysMissing,
 }
 
 impl Config {
@@ -146,6 +152,14 @@ impl Config {
         }
         if self.db_statement_timeout_ms == 0 {
             return Err(ConfigError::StatementTimeoutDisabled);
+        }
+        if self.otel_export_langfuse {
+            match (&self.langfuse_public_key, &self.langfuse_secret_key) {
+                (Some(pk), Some(sk)) if !pk.is_empty() && !sk.is_empty() => {}
+                _ => {
+                    return Err(ConfigError::LangfuseKeysMissing);
+                }
+            }
         }
         Ok(())
     }
@@ -173,7 +187,12 @@ pub fn apply_otel_type_legacy(cfg: &mut Config, otel_type: Option<&str>) {
             cfg.otel_export_grafana = true;
             cfg.otel_export_langfuse = true;
         }
-        _ => {}
+        Some(other) => {
+            eprintln!(
+                "[otel] unknown OTEL_TYPE value {other:?}; expected: collector, langfuse, both"
+            );
+        }
+        None => {}
     }
 }
 
@@ -186,9 +205,12 @@ mod tests {
     fn otel_export_local_defaults_true_when_env_is_dev_and_var_not_set() {
         let mut cfg = Config::try_parse_from([
             "engagement-hub",
-            "--env", "dev",
-            "--registry-adapter", "stub",
-            "--database-url", "postgres://localhost/test",
+            "--env",
+            "dev",
+            "--registry-adapter",
+            "stub",
+            "--database-url",
+            "postgres://localhost/test",
         ])
         .unwrap();
         apply_otel_local_default(&mut cfg, false);
@@ -199,9 +221,12 @@ mod tests {
     fn otel_export_local_not_overridden_when_explicitly_set() {
         let mut cfg = Config::try_parse_from([
             "engagement-hub",
-            "--env", "dev",
-            "--registry-adapter", "stub",
-            "--database-url", "postgres://localhost/test",
+            "--env",
+            "dev",
+            "--registry-adapter",
+            "stub",
+            "--database-url",
+            "postgres://localhost/test",
         ])
         .unwrap();
         // var_set=true means OTEL_EXPORT_LOCAL was explicitly set; default (false) must be preserved
@@ -213,9 +238,12 @@ mod tests {
     fn otel_type_both_sets_grafana_and_langfuse() {
         let mut cfg = Config::try_parse_from([
             "engagement-hub",
-            "--env", "dev",
-            "--registry-adapter", "stub",
-            "--database-url", "postgres://localhost/test",
+            "--env",
+            "dev",
+            "--registry-adapter",
+            "stub",
+            "--database-url",
+            "postgres://localhost/test",
         ])
         .unwrap();
         apply_otel_type_legacy(&mut cfg, Some("both"));
@@ -227,9 +255,12 @@ mod tests {
     fn otel_type_collector_sets_grafana_only() {
         let mut cfg = Config::try_parse_from([
             "engagement-hub",
-            "--env", "dev",
-            "--registry-adapter", "stub",
-            "--database-url", "postgres://localhost/test",
+            "--env",
+            "dev",
+            "--registry-adapter",
+            "stub",
+            "--database-url",
+            "postgres://localhost/test",
         ])
         .unwrap();
         apply_otel_type_legacy(&mut cfg, Some("collector"));

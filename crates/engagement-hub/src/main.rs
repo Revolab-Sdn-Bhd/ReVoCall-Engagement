@@ -4,7 +4,9 @@ use anyhow::Result;
 use clap::Parser;
 
 use engagement_hub::{
-    config::{Config, ConfigError, RegistryAdapter, apply_otel_local_default, apply_otel_type_legacy},
+    config::{
+        Config, ConfigError, RegistryAdapter, apply_otel_local_default, apply_otel_type_legacy,
+    },
     db,
     metrics::Metrics,
     server::{grpc, http},
@@ -24,6 +26,15 @@ async fn main() -> Result<()> {
 
     apply_otel_local_default(&mut cfg, std::env::var_os("OTEL_EXPORT_LOCAL").is_some());
 
+    // Legacy OTEL_TYPE deprecation (before init so translation actually takes effect)
+    let otel_type = std::env::var("OTEL_TYPE").ok();
+    if let Some(ref t) = otel_type {
+        eprintln!(
+            "[otel] OTEL_TYPE={t} is deprecated; use OTEL_EXPORT_GRAFANA / OTEL_EXPORT_LANGFUSE / OTEL_EXPORT_LOCAL"
+        );
+        apply_otel_type_legacy(&mut cfg, Some(t.as_str()));
+    }
+
     let metrics = Arc::new(Metrics::new(
         cfg.registry_adapter,
         cfg.env,
@@ -32,14 +43,12 @@ async fn main() -> Result<()> {
 
     telemetry::init_telemetry(&cfg, &metrics);
 
-    // Legacy OTEL_TYPE deprecation warning (after tracing is up)
-    let otel_type = std::env::var("OTEL_TYPE").ok();
+    // After telemetry is up, emit structured warn so it appears in logs
     if let Some(ref t) = otel_type {
         tracing::warn!(
             otel_type = %t,
             "OTEL_TYPE is deprecated; use OTEL_EXPORT_GRAFANA / OTEL_EXPORT_LANGFUSE / OTEL_EXPORT_LOCAL"
         );
-        apply_otel_type_legacy(&mut cfg, Some(t.as_str()));
     }
 
     if cfg.track_0_idle_mode && matches!(cfg.registry_adapter, RegistryAdapter::Grpc) {

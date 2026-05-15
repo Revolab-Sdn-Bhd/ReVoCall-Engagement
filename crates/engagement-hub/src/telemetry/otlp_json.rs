@@ -1,8 +1,8 @@
 //! OTLP JSON mirror structs for serialising `SpanData` into the OTLP/JSON
 //! trace wire format.  The structs use camelCase keys to match the OTLP spec.
 
-use opentelemetry::trace::{SpanId, SpanKind, Status};
 use opentelemetry::Value as OtelValue;
+use opentelemetry::trace::{SpanId, SpanKind, Status};
 use opentelemetry_sdk::export::trace::SpanData;
 use serde::Serialize;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -158,36 +158,39 @@ pub fn spans_to_traces_data(
     resource_attrs: &[KvAttribute],
     scope_name: &str,
 ) -> TracesData {
-    let spans: Vec<OtlpSpan> = batch.iter().map(|span| {
-        let trace_id = bytes_to_hex(&span.span_context.trace_id().to_bytes());
-        let span_id = bytes_to_hex(&span.span_context.span_id().to_bytes());
-        let parent_span_id = if span.parent_span_id == SpanId::INVALID {
-            String::new()
-        } else {
-            bytes_to_hex(&span.parent_span_id.to_bytes())
-        };
+    let spans: Vec<OtlpSpan> = batch
+        .iter()
+        .map(|span| {
+            let trace_id = bytes_to_hex(&span.span_context.trace_id().to_bytes());
+            let span_id = bytes_to_hex(&span.span_context.span_id().to_bytes());
+            let parent_span_id = if span.parent_span_id == SpanId::INVALID {
+                String::new()
+            } else {
+                bytes_to_hex(&span.parent_span_id.to_bytes())
+            };
 
-        let attributes: Vec<KvAttribute> = span
-            .attributes
-            .iter()
-            .map(|kv| KvAttribute {
-                key: kv.key.to_string(),
-                value: otel_value_to_kv(&kv.value),
-            })
-            .collect();
+            let attributes: Vec<KvAttribute> = span
+                .attributes
+                .iter()
+                .map(|kv| KvAttribute {
+                    key: kv.key.to_string(),
+                    value: otel_value_to_kv(&kv.value),
+                })
+                .collect();
 
-        OtlpSpan {
-            trace_id,
-            span_id,
-            parent_span_id,
-            name: span.name.to_string(),
-            kind: span_kind_to_int(&span.span_kind),
-            start_time_unix_nano: system_time_to_nano_str(span.start_time),
-            end_time_unix_nano: system_time_to_nano_str(span.end_time),
-            attributes,
-            status: status_to_otlp(&span.status),
-        }
-    }).collect();
+            OtlpSpan {
+                trace_id,
+                span_id,
+                parent_span_id,
+                name: span.name.to_string(),
+                kind: span_kind_to_int(&span.span_kind),
+                start_time_unix_nano: system_time_to_nano_str(span.start_time),
+                end_time_unix_nano: system_time_to_nano_str(span.end_time),
+                attributes,
+                status: status_to_otlp(&span.status),
+            }
+        })
+        .collect();
 
     // Build resource attributes (cloning strings from the slice provided).
     let resource_attributes: Vec<KvAttribute> = resource_attrs
@@ -230,13 +233,9 @@ pub enum StatusForTest {
 }
 
 #[doc(hidden)]
-pub fn fake_span_for_test(
-    name: &'static str,
-    duration_ms: u64,
-    status: StatusForTest,
-) -> SpanData {
-    use opentelemetry::trace::{SpanContext, TraceFlags, TraceId, TraceState};
+pub fn fake_span_for_test(name: &'static str, duration_ms: u64, status: StatusForTest) -> SpanData {
     use opentelemetry::InstrumentationScope;
+    use opentelemetry::trace::{SpanContext, TraceFlags, TraceId, TraceState};
     use std::borrow::Cow;
     use std::time::Duration;
 
@@ -290,7 +289,10 @@ mod tests {
         let span = fake_span_for_test("my-op", 42, StatusForTest::Ok);
         let data = spans_to_traces_data(&[span], &[], "test-scope");
         let line = serde_json::to_string(&data).unwrap();
-        assert!(line.contains("resourceSpans"), "missing resourceSpans:\n{line}");
+        assert!(
+            line.contains("resourceSpans"),
+            "missing resourceSpans:\n{line}"
+        );
         assert!(line.contains("my-op"), "missing operation name:\n{line}");
         assert!(line.contains("traceId"), "missing traceId:\n{line}");
         assert!(line.contains("spanId"), "missing spanId:\n{line}");
