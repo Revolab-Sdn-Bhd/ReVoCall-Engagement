@@ -2,11 +2,25 @@ pub mod otlp_json;
 pub mod local_exporter;
 pub mod processor;
 
+use std::collections::HashMap;
+
 use opentelemetry::trace::TraceResult;
-use opentelemetry::Context;
-use opentelemetry_sdk::trace::{Span, SpanProcessor, TracerProvider};
+use opentelemetry::{Context, KeyValue};
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_otlp::WithHttpConfig;
 use opentelemetry_sdk::export::trace::SpanData;
+use opentelemetry_sdk::trace::{Span, SpanProcessor, TracerProvider};
 use opentelemetry_sdk::Resource;
+use opentelemetry::trace::TracerProvider as TracerProviderTrait;
+use opentelemetry_semantic_conventions::attribute::{SERVICE_NAME, SERVICE_VERSION};
+// SERVICE_NAMESPACE and DEPLOYMENT_ENVIRONMENT are behind the `semconv_experimental` feature
+// in 0.27; use the string literals directly.
+const SERVICE_NAMESPACE: &str = "service.namespace";
+const DEPLOYMENT_ENVIRONMENT: &str = "deployment.environment";
+use tracing_subscriber::{prelude::*, EnvFilter};
+
+use crate::config::{Config, LogFormat};
+use crate::metrics::Metrics;
 
 /// A newtype wrapper so that `Box<dyn SpanProcessor>` can be passed to
 /// `TracerProvider::builder().with_span_processor(...)`, which requires
@@ -44,6 +58,123 @@ pub fn build_provider(
         builder = builder.with_span_processor(BoxedProcessor(p));
     }
     builder.build()
+}
+
+pub fn init_telemetry(config: &Config, metrics: &Metrics) {
+    let resource = Resource::new(vec![
+        KeyValue::new(SERVICE_NAME, "engagement-hub"),
+        KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
+        KeyValue::new(SERVICE_NAMESPACE, "revocall"),
+        KeyValue::new(DEPLOYMENT_ENVIRONMENT, config.env.as_metric_label()),
+    ]);
+
+    let mut processors: Vec<Box<dyn SpanProcessor>> = Vec::new();
+
+    if config.otel_export_grafana {
+        match opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(&config.otel_grafana_endpoint)
+            .build()
+        {
+            Ok(exporter) => {
+                processors.push(Box::new(processor::CountingSpanProcessor::new(
+                    "grafana",
+                    exporter,
+                    metrics.otel_exporter_dropped_spans.with_label_values(&["grafana"]),
+                )));
+            }
+            Err(e) => eprintln!("[otel] failed to build Grafana exporter: {e}"),
+        }
+    }
+
+    if config.otel_export_langfuse {
+        let auth = base64_encode(&format!(
+            "{}:{}",
+            config.langfuse_public_key.as_deref().unwrap_or(""),
+            config.langfuse_secret_key.as_deref().unwrap_or(""),
+        ));
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), format!("Basic {auth}"));
+
+        match opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint(&config.otel_langfuse_endpoint)
+            .with_headers(headers)
+            .build()
+        {
+            Ok(exporter) => {
+                processors.push(Box::new(processor::CountingSpanProcessor::new(
+                    "langfuse",
+                    exporter,
+                    metrics.otel_exporter_dropped_spans.with_label_values(&["langfuse"]),
+                )));
+            }
+            Err(e) => eprintln!("[otel] failed to build Langfuse exporter: {e}"),
+        }
+    }
+
+    if config.otel_export_local {
+        local_exporter::JsonlFileExporter::purge_old_files(
+            std::path::Path::new(".traces"),
+            chrono::Local::now().date_naive(),
+            7,
+        );
+        processors.push(Box::new(processor::CountingSpanProcessor::new(
+            "local",
+            local_exporter::JsonlFileExporter::new_with_counter(
+                "engagement-hub",
+                build_resource_attrs(config),
+                metrics.otel_exporter_dropped_spans.with_label_values(&["local"]),
+            ),
+            metrics.otel_exporter_dropped_spans.with_label_values(&["local"]),
+        )));
+    }
+
+    let provider = build_provider(resource, processors);
+    let tracer = provider.tracer("engagement-hub");
+    opentelemetry::global::set_tracer_provider(provider);
+
+    let env_filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,engagement_hub=debug,sqlx::query=warn"));
+    let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
+    let registry = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(otel_layer);
+
+    match config.log_format {
+        LogFormat::Pretty => registry.with(tracing_subscriber::fmt::layer().pretty()).init(),
+        LogFormat::Json => registry.with(tracing_subscriber::fmt::layer().json()).init(),
+    }
+}
+
+pub fn shutdown_telemetry() {
+    opentelemetry::global::shutdown_tracer_provider();
+}
+
+fn build_resource_attrs(config: &Config) -> Vec<otlp_json::KvAttribute> {
+    use otlp_json::{KvAttribute, KvValue};
+    vec![
+        KvAttribute { key: "service.name".into(), value: KvValue::StringValue("engagement-hub".into()) },
+        KvAttribute { key: "service.version".into(), value: KvValue::StringValue(env!("CARGO_PKG_VERSION").into()) },
+        KvAttribute { key: "deployment.environment".into(), value: KvValue::StringValue(config.env.as_metric_label().into()) },
+    ]
+}
+
+fn base64_encode(input: &str) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes = input.as_bytes();
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let b0 = chunk[0] as usize;
+        let b1 = if chunk.len() > 1 { chunk[1] as usize } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as usize } else { 0 };
+        out.push(TABLE[b0 >> 2] as char);
+        out.push(TABLE[((b0 & 3) << 4) | (b1 >> 4)] as char);
+        out.push(if chunk.len() > 1 { TABLE[((b1 & 0xf) << 2) | (b2 >> 6)] as char } else { '=' });
+        out.push(if chunk.len() > 2 { TABLE[b2 & 0x3f] as char } else { '=' });
+    }
+    out
 }
 
 #[cfg(test)]
