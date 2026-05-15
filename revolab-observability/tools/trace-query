@@ -55,6 +55,10 @@ case "$1" in
     ;;
   slow)
     THRESHOLD_MS="${2:-1000}"
+    if ! [[ "$THRESHOLD_MS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+      echo "error: threshold must be a number (got: '$THRESHOLD_MS')" >&2
+      exit 2
+    fi
     jq -Rn --argjson ms "$THRESHOLD_MS" \
       "[inputs | fromjson? // empty | $JQ_FLATTEN | select(.duration_ms >= \$ms)]" \
       "${FILES[@]}"

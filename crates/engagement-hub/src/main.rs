@@ -33,6 +33,12 @@ async fn main() -> Result<()> {
             "[otel] OTEL_TYPE={t} is deprecated; use OTEL_EXPORT_GRAFANA / OTEL_EXPORT_LANGFUSE / OTEL_EXPORT_LOCAL"
         );
         apply_otel_type_legacy(&mut cfg, Some(t.as_str()));
+        // Re-validate after legacy translation may have enabled exporters that require credentials
+        if let Err(e) = cfg.validate() {
+            eprintln!("invalid config after OTEL_TYPE translation: {e}");
+            let _: ConfigError = e;
+            std::process::exit(78);
+        }
     }
 
     let metrics = Arc::new(Metrics::new(
