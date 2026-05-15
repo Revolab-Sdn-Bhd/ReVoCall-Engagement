@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
     let metrics = Arc::new(Metrics::new(cfg.registry_adapter, cfg.env, cfg.track_0_idle_mode)?);
     let shutdown = Shutdown::default();
 
-    let grpc_servers = grpc::spawn(
+    let mut grpc_servers = grpc::spawn(
         cfg.external_grpc_addr,
         cfg.internal_grpc_addr,
         cfg.bind_external_port(),
@@ -64,6 +64,7 @@ async fn main() -> Result<()> {
     wait_for_signal().await;
 
     let _ = shutdown.drain_tx.send(true);
+    grpc_servers.signal_draining().await;
     tracing::info!("draining (readyz now reports 503)");
     let _ = shutdown.shutdown_tx.send(true);
 

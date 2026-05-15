@@ -12,6 +12,20 @@ pub struct GrpcServers {
     pub internal_reporter: HealthReporter,
 }
 
+impl GrpcServers {
+    /// Flips both gRPC health reporters to NOT_SERVING so load-balancers stop
+    /// routing new requests during graceful drain.
+    pub async fn signal_draining(&mut self) {
+        self.internal_reporter
+            .set_service_status("", tonic_health::ServingStatus::NotServing)
+            .await;
+        if let Some(ref mut rep) = self.external_reporter {
+            rep.set_service_status("", tonic_health::ServingStatus::NotServing)
+                .await;
+        }
+    }
+}
+
 pub async fn spawn(
     external_addr: SocketAddr,
     internal_addr: SocketAddr,

@@ -50,6 +50,29 @@ async fn both_ports_serving_when_not_idle() {
 }
 
 #[tokio::test]
+async fn signal_draining_flips_to_not_serving() {
+    let ext = pick_port().await;
+    let int = pick_port().await;
+    let (_shut_tx, shut_rx) = watch::channel(false);
+
+    let mut servers = grpc::spawn(ext, int, true, shut_rx).await.unwrap();
+    tokio::time::sleep(Duration::from_millis(250)).await;
+
+    // Both start as SERVING
+    assert_eq!(check(ext).await, ServingStatus::Serving);
+    assert_eq!(check(int).await, ServingStatus::Serving);
+
+    // After signal_draining, both should be NOT_SERVING
+    servers.signal_draining().await;
+    tokio::time::sleep(Duration::from_millis(50)).await;
+
+    assert_eq!(check(ext).await, ServingStatus::NotServing);
+    assert_eq!(check(int).await, ServingStatus::NotServing);
+
+    // Servers still running; clean shutdown handled by _shut_tx drop
+}
+
+#[tokio::test]
 async fn external_port_unbound_in_idle_mode() {
     let ext = pick_port().await;
     let int = pick_port().await;
