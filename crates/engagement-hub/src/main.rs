@@ -39,7 +39,11 @@ async fn main() -> Result<()> {
         std::process::exit(70); // EX_SOFTWARE
     });
 
-    let metrics = Arc::new(Metrics::new(cfg.registry_adapter, cfg.env, cfg.track_0_idle_mode)?);
+    let metrics = Arc::new(Metrics::new(
+        cfg.registry_adapter,
+        cfg.env,
+        cfg.track_0_idle_mode,
+    )?);
     let shutdown = Shutdown::default();
 
     let mut grpc_servers = grpc::spawn(
