@@ -4,6 +4,12 @@ use clap::{Parser, ValueEnum};
 use thiserror::Error;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum LogFormat {
+    Json,
+    Pretty,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum Env {
     Dev,
     Staging,
@@ -64,8 +70,8 @@ pub struct Config {
     #[arg(long, env = "EH_DB_SLOW_QUERY_MS", default_value_t = 500)]
     pub db_slow_query_ms: u64,
 
-    #[arg(long, env = "EH_LOG_FORMAT", default_value = "json")]
-    pub log_format: String,
+    #[arg(long, env = "EH_LOG_FORMAT", value_enum, default_value_t = LogFormat::Json)]
+    pub log_format: LogFormat,
 }
 
 #[non_exhaustive]

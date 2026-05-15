@@ -5,7 +5,7 @@ use clap::Parser;
 use tracing_subscriber::{EnvFilter, prelude::*};
 
 use engagement_hub::{
-    config::{Config, ConfigError},
+    config::{Config, ConfigError, LogFormat},
     db,
     metrics::Metrics,
     server::{grpc, http},
@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
         std::process::exit(78); // EX_CONFIG
     }
 
-    init_tracing(&cfg.log_format);
+    init_tracing(cfg.log_format);
 
     let pool = db::build_pool(&cfg).await?;
     db::run_migrations(&pool).await.unwrap_or_else(|err| {
@@ -78,18 +78,21 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn init_tracing(format: &str) {
+fn init_tracing(format: LogFormat) {
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info,engagement_hub=debug,sqlx::query=warn"));
 
     let registry = tracing_subscriber::registry().with(env_filter);
-    if format == "pretty" {
-        registry
-            .with(tracing_subscriber::fmt::layer().pretty())
-            .init();
-    } else {
-        registry
-            .with(tracing_subscriber::fmt::layer().json())
-            .init();
+    match format {
+        LogFormat::Pretty => {
+            registry
+                .with(tracing_subscriber::fmt::layer().pretty())
+                .init();
+        }
+        LogFormat::Json => {
+            registry
+                .with(tracing_subscriber::fmt::layer().json())
+                .init();
+        }
     }
 }

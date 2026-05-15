@@ -1,4 +1,4 @@
-use engagement_hub::config::{Config, ConfigError, Env, RegistryAdapter};
+use engagement_hub::config::{Config, ConfigError, Env, LogFormat, RegistryAdapter};
 
 fn base() -> Config {
     Config {
@@ -14,7 +14,7 @@ fn base() -> Config {
         db_idle_timeout_secs: 300,
         db_statement_timeout_ms: 5000,
         db_slow_query_ms: 500,
-        log_format: "json".into(),
+        log_format: LogFormat::Json,
     }
 }
 
