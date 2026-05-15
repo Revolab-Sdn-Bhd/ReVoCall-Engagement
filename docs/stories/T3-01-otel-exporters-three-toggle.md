@@ -109,6 +109,7 @@ TracerProvider
 **Shutdown protocol** (prevents deadlock): `shutdown()` sends a oneshot flush signal to the background task; the task finishes its current batch, drains any remaining spans (up to one more batch), calls `E::shutdown()`, then exits. The calling thread `join`s the task handle with a 5s `tokio::time::timeout`. If the timeout fires, the task is abandoned (spans already in the OS write buffer are lost — acceptable for dev/ops telemetry).
 
 OTEL Resource (built once, attached to provider):
+
 - `service.name = "engagement-hub"`, `service.version = env!("CARGO_PKG_VERSION")`
 - `service.namespace = "revocall"`, `deployment.environment = config.env.as_str()`
 
@@ -121,6 +122,7 @@ Dropped-spans counter added to `metrics.rs`.
 Implements `opentelemetry_sdk::export::trace::SpanExporter`.
 
 On each `export(batch)`:
+
 1. Check current date — if changed since last write, close old handle, open new `engagement-hub-<YYYY-MM-DD>.jsonl` under `.traces/`
 2. Check file size — if ≥ 100MB, skip write, increment `dropped_spans{exporter="local"}` (no overflow file)
 3. Convert `Vec<SpanData>` → OTLP JSON envelope via serde-annotated mirror structs (no prost dependency): `{"resourceSpans":[{"resource":{...},"scopeSpans":[{"spans":[...]}]}]}`
@@ -135,6 +137,7 @@ On each `export(batch)`:
 Bash+jq script. All subcommands read from `.traces/*.jsonl`.
 
 Shared jq pipeline extracts a flat span record from the OTLP envelope:
+
 ```
 .resourceSpans[].scopeSpans[].spans[]
 | {
@@ -148,7 +151,7 @@ Shared jq pipeline extracts a flat span record from the OTLP envelope:
 ```
 
 | Subcommand | Filter |
-|---|---|
+| --- | --- |
 | `engagement <id>` | `attrs["revolab.engagement_id"] == $id` |
 | `trace <trace_id>` | `.trace_id == $trace_id` |
 | `slow [<ms>]` | `.duration_ms >= ($threshold\|tonumber)` (default 1000) |
@@ -177,7 +180,7 @@ Exact patch versions pinned at `cargo add` time during implementation.
 All in `crates/engagement-hub/src/telemetry/` via `#[cfg(test)]`.
 
 | Test | Verifies |
-|---|---|
+| --- | --- |
 | `exporter_independence` | One exporter panics; other two still receive spans |
 | `local_exporter_creates_file` | `export(batch)` → valid JSONL file in `.traces/` |
 | `local_exporter_daily_rotation` | Mock clock past midnight → new file opened |
