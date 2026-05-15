@@ -8,3 +8,5 @@ Cargo.lock.bak
 .vscode/
 *.swp
 /.traces/
+.sqlx/
+docker-compose.override.yml

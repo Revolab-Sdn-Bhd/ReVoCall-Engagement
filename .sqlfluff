@@ -1,0 +1,8 @@
+[sqlfluff]
+dialect = postgres
+# Wide exclude list: PRD §11 locks column/identifier names (e.g., `mode`, `sequence`)
+# and most layout/casing rules duplicate the schema spec without adding value.
+exclude_rules = structure.column_order, ambiguous.column_count, references.qualification, references.consistent, references.keywords, aliasing.length, aliasing.column, capitalisation.identifiers, capitalisation.types, capitalisation.functions, capitalisation.literals, layout.indent, layout.long_lines, layout.spacing, layout.commas, layout.start_of_file
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
