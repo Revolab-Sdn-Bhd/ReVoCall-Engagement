@@ -63,6 +63,138 @@ mod tests {
     use super::*;
 
     #[test]
+    fn all_counters_registered() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        let text = m.gather_text().unwrap();
+        for name in [
+            "engagementhub_rpc_total",
+            "engagementhub_engagements_started_total",
+            "engagementhub_engagements_terminal_total",
+            "engagementhub_engagement_errors_total",
+            "engagementhub_watch_streams_opened_total",
+            "engagementhub_watch_stream_reconnects_total",
+            "engagementhub_reconciler_swept_total",
+            "engagementhub_adapter_retries_total",
+            "engagementhub_saga_compensation_outcome_total",
+            "engagementhub_audit_insert_failures_total",
+            "engagementhub_listen_notify_reconnects_total",
+            "engagementhub_otel_exporter_dropped_spans_total",
+            "engagementhub_db_failover_detected_total",
+        ] {
+            assert!(text.contains(name), "counter missing: {name}\n\nfull output:\n{text}");
+        }
+    }
+
+    #[test]
+    fn all_histograms_registered() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        let text = m.gather_text().unwrap();
+        for name in [
+            "engagementhub_rpc_duration_seconds",
+            "engagementhub_adapter_duration_seconds",
+            "engagementhub_orchestration_duration_seconds",
+            "engagementhub_startup_duration_seconds",
+            "engagementhub_call_duration_seconds",
+            "engagementhub_time_to_first_response_seconds",
+            "engagementhub_watch_stream_duration_seconds",
+            "engagementhub_listen_notify_fanout_latency_seconds",
+            "engagementhub_audit_insert_duration_seconds",
+        ] {
+            assert!(
+                text.contains(&format!("{name}_bucket"))
+                    || text.contains(&format!("{name}_sum")),
+                "histogram missing: {name}\n\nfull output:\n{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn all_gauges_registered() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        let text = m.gather_text().unwrap();
+        for name in [
+            "engagementhub_active_engagements",
+            "engagementhub_active_watches",
+            "engagementhub_in_flight_invocations",
+            "engagementhub_db_pool_in_use",
+            "engagementhub_db_pool_idle",
+            "engagementhub_reconciler_backlog",
+            "engagementhub_registry_adapter_kind",
+        ] {
+            assert!(text.contains(name), "gauge missing: {name}\n\nfull output:\n{text}");
+        }
+    }
+
+    #[test]
+    fn pre_initialized_series_appear_at_zero() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        let text = m.gather_text().unwrap();
+        // reconciler_backlog — all 4 class values
+        for class in [
+            "pending_engagement",
+            "orphan_compensation",
+            "pending_audit",
+            "overrun_live",
+        ] {
+            assert!(
+                text.contains(&format!(
+                    "engagementhub_reconciler_backlog{{class=\"{class}\"}} 0"
+                )),
+                "reconciler_backlog class={class} missing at zero\n\nfull output:\n{text}"
+            );
+        }
+        // startup_duration_seconds — all 6 stage values
+        for stage in [
+            "validate_and_commit",
+            "registry_resolve",
+            "route_resolved_commit",
+            "parallel_bind",
+            "invocation_requested_commit",
+            "audit",
+        ] {
+            assert!(
+                text.contains(&format!(
+                    "engagementhub_startup_duration_seconds_count{{stage=\"{stage}\"}} 0"
+                )),
+                "startup_duration stage={stage} missing\n\nfull output:\n{text}"
+            );
+        }
+        // orchestration_duration_seconds — all 4 stage values
+        for stage in [
+            "start_engagement",
+            "stop_engagement",
+            "cancel_engagement",
+            "saga_compensation",
+        ] {
+            assert!(
+                text.contains(&format!(
+                    "engagementhub_orchestration_duration_seconds_count{{stage=\"{stage}\"}} 0"
+                )),
+                "orchestration_duration stage={stage} missing\n\nfull output:\n{text}"
+            );
+        }
+        // otel_exporter_dropped_spans_total — regression guard
+        for exporter in ["grafana", "langfuse", "local"] {
+            assert!(
+                text.contains(&format!("exporter=\"{exporter}\"")),
+                "dropped_spans exporter={exporter} missing\n\nfull output:\n{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_organization_id_label() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        let text = m.gather_text().unwrap();
+        assert!(
+            !text.contains("organization_id"),
+            "organization_id found as Prometheus label — high-cardinality footgun!\n\nfull output:\n{text}"
+        );
+    }
+
+    // --- existing tests kept below ---
+
+    #[test]
     fn active_kind_has_all_three_labels() {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
         let text = m.gather_text().unwrap();
