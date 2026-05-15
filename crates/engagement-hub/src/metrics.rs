@@ -1,5 +1,5 @@
 use anyhow::Result;
-use prometheus::{IntCounterVec, IntGaugeVec, Opts, Registry};
+use prometheus::{IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry};
 
 use crate::config::{Env, RegistryAdapter};
 
@@ -7,6 +7,19 @@ pub struct Metrics {
     pub registry: Registry,
     pub registry_adapter_kind: IntGaugeVec,
     pub otel_exporter_dropped_spans: IntCounterVec,
+    // --- Counters (new) ---
+    pub rpc_total: IntCounterVec,
+    pub engagements_started_total: IntCounterVec,
+    pub engagements_terminal_total: IntCounterVec,
+    pub engagement_errors_total: IntCounterVec,
+    pub watch_streams_opened_total: IntCounter,
+    pub watch_stream_reconnects_total: IntCounter,
+    pub reconciler_swept_total: IntCounterVec,
+    pub adapter_retries_total: IntCounterVec,
+    pub saga_compensation_outcome_total: IntCounterVec,
+    pub audit_insert_failures_total: IntCounter,
+    pub listen_notify_reconnects_total: IntCounter,
+    pub db_failover_detected_total: IntCounter,
 }
 
 impl Metrics {
@@ -41,10 +54,115 @@ impl Metrics {
             otel_exporter_dropped_spans.with_label_values(&[name]);
         }
 
+        let rpc_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_rpc_total",
+                "Total RPC calls by method, status code, and caller",
+            ),
+            &["rpc", "code", "caller_service"],
+        )?;
+        registry.register(Box::new(rpc_total.clone()))?;
+
+        let engagements_started_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_engagements_started_total",
+                "Total engagements started by channel and mode",
+            ),
+            &["channel", "mode"],
+        )?;
+        registry.register(Box::new(engagements_started_total.clone()))?;
+
+        let engagements_terminal_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_engagements_terminal_total",
+                "Total engagements reaching a terminal status",
+            ),
+            &["terminal_status"],
+        )?;
+        registry.register(Box::new(engagements_terminal_total.clone()))?;
+
+        let engagement_errors_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_engagement_errors_total",
+                "Total engagement errors by error code",
+            ),
+            &["error_code"],
+        )?;
+        registry.register(Box::new(engagement_errors_total.clone()))?;
+
+        let watch_streams_opened_total = IntCounter::new(
+            "engagementhub_watch_streams_opened_total",
+            "Total watch streams opened",
+        )?;
+        registry.register(Box::new(watch_streams_opened_total.clone()))?;
+
+        let watch_stream_reconnects_total = IntCounter::new(
+            "engagementhub_watch_stream_reconnects_total",
+            "Total watch stream reconnection attempts",
+        )?;
+        registry.register(Box::new(watch_stream_reconnects_total.clone()))?;
+
+        let reconciler_swept_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_reconciler_swept_total",
+                "Total engagements swept by the reconciler, by source status and action taken",
+            ),
+            &["from_status", "action"],
+        )?;
+        registry.register(Box::new(reconciler_swept_total.clone()))?;
+
+        let adapter_retries_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_adapter_retries_total",
+                "Total adapter call retries by target, method, and attempt number",
+            ),
+            &["target", "method", "attempt_number"],
+        )?;
+        registry.register(Box::new(adapter_retries_total.clone()))?;
+
+        let saga_compensation_outcome_total = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_saga_compensation_outcome_total",
+                "Saga compensation outcomes by stage and result",
+            ),
+            &["stage", "result"],
+        )?;
+        registry.register(Box::new(saga_compensation_outcome_total.clone()))?;
+
+        let audit_insert_failures_total = IntCounter::new(
+            "engagementhub_audit_insert_failures_total",
+            "Total audit insert failures — any non-zero rate is a compliance breach",
+        )?;
+        registry.register(Box::new(audit_insert_failures_total.clone()))?;
+
+        let listen_notify_reconnects_total = IntCounter::new(
+            "engagementhub_listen_notify_reconnects_total",
+            "Total LISTEN/NOTIFY connection reconnections",
+        )?;
+        registry.register(Box::new(listen_notify_reconnects_total.clone()))?;
+
+        let db_failover_detected_total = IntCounter::new(
+            "engagementhub_db_failover_detected_total",
+            "Total detected database failover events",
+        )?;
+        registry.register(Box::new(db_failover_detected_total.clone()))?;
+
         Ok(Self {
             registry,
             registry_adapter_kind,
             otel_exporter_dropped_spans,
+            rpc_total,
+            engagements_started_total,
+            engagements_terminal_total,
+            engagement_errors_total,
+            watch_streams_opened_total,
+            watch_stream_reconnects_total,
+            reconciler_swept_total,
+            adapter_retries_total,
+            saga_compensation_outcome_total,
+            audit_insert_failures_total,
+            listen_notify_reconnects_total,
+            db_failover_detected_total,
         })
     }
 
@@ -65,6 +183,16 @@ mod tests {
     #[test]
     fn all_counters_registered() {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        // Touch each labeled counter so its family appears in gather_text output.
+        // prometheus 0.13 omits empty Vec families; this test-only Metrics instance
+        // never reaches a real registry, so these sentinel values have no side effects.
+        m.rpc_total.with_label_values(&["_", "_", "_"]);
+        m.engagements_started_total.with_label_values(&["_", "_"]);
+        m.engagements_terminal_total.with_label_values(&["_"]);
+        m.engagement_errors_total.with_label_values(&["_"]);
+        m.reconciler_swept_total.with_label_values(&["_", "_"]);
+        m.adapter_retries_total.with_label_values(&["_", "_", "_"]);
+        m.saga_compensation_outcome_total.with_label_values(&["_", "_"]);
         let text = m.gather_text().unwrap();
         for name in [
             "engagementhub_rpc_total",
