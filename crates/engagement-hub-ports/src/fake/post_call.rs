@@ -260,10 +260,11 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_get_transcript(Outcome::Success(Transcript {
             messages: vec![],
-            total_size: 0,
+            total_size: 3,
         }));
-        let result = fake.get_transcript(&eng_id()).await;
-        assert!(result.is_ok());
+        let result = fake.get_transcript(&eng_id()).await.unwrap();
+        assert_eq!(result.total_size, 3);
+        assert!(result.messages.is_empty());
     }
 
     #[tokio::test]
@@ -305,12 +306,12 @@ mod tests {
     async fn get_summary_success() {
         let fake = FakePostCallPort::new();
         fake.push_get_summary(Outcome::Success(Summary {
-            summary: "test".into(),
+            summary: "test summary".into(),
             resolution: None,
             resolution_explanation: None,
         }));
-        let result = fake.get_summary(&eng_id()).await;
-        assert!(result.is_ok());
+        let result = fake.get_summary(&eng_id()).await.unwrap();
+        assert_eq!(result.summary, "test summary");
     }
 
     #[tokio::test]
@@ -347,8 +348,8 @@ mod tests {
             label: "neutral".into(),
             justification: "no data".into(),
         }));
-        let result = fake.get_sentiment(&eng_id()).await;
-        assert!(result.is_ok());
+        let result = fake.get_sentiment(&eng_id()).await.unwrap();
+        assert_eq!(result.label, "neutral");
     }
 
     #[tokio::test]
