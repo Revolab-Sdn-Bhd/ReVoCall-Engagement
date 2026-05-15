@@ -1,5 +1,5 @@
 use anyhow::Result;
-use prometheus::{Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry};
+use prometheus::{Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry};
 
 use crate::config::{Env, RegistryAdapter};
 
@@ -30,6 +30,13 @@ pub struct Metrics {
     pub watch_stream_duration_seconds: Histogram,
     pub listen_notify_fanout_latency_seconds: Histogram,
     pub audit_insert_duration_seconds: Histogram,
+    // --- Gauges ---
+    pub active_engagements: IntGaugeVec,
+    pub active_watches: IntGaugeVec,
+    pub in_flight_invocations: IntGauge,
+    pub db_pool_in_use: IntGauge,
+    pub db_pool_idle: IntGauge,
+    pub reconciler_backlog: IntGaugeVec,
 }
 
 impl Metrics {
@@ -268,6 +275,61 @@ impl Metrics {
         )?;
         registry.register(Box::new(audit_insert_duration_seconds.clone()))?;
 
+        // --- Gauges ---
+        let active_engagements = IntGaugeVec::new(
+            Opts::new(
+                "engagementhub_active_engagements",
+                "Current number of active engagements by status",
+            ),
+            &["status"],
+        )?;
+        registry.register(Box::new(active_engagements.clone()))?;
+
+        let active_watches = IntGaugeVec::new(
+            Opts::new(
+                "engagementhub_active_watches",
+                "Current number of active watch streams by filter type",
+            ),
+            &["filter_type"],
+        )?;
+        registry.register(Box::new(active_watches.clone()))?;
+
+        let in_flight_invocations = IntGauge::new(
+            "engagementhub_in_flight_invocations",
+            "Current number of in-flight adapter invocations",
+        )?;
+        registry.register(Box::new(in_flight_invocations.clone()))?;
+
+        let db_pool_in_use = IntGauge::new(
+            "engagementhub_db_pool_in_use",
+            "Current number of database pool connections in use",
+        )?;
+        registry.register(Box::new(db_pool_in_use.clone()))?;
+
+        let db_pool_idle = IntGauge::new(
+            "engagementhub_db_pool_idle",
+            "Current number of idle database pool connections",
+        )?;
+        registry.register(Box::new(db_pool_idle.clone()))?;
+
+        let reconciler_backlog = IntGaugeVec::new(
+            Opts::new(
+                "engagementhub_reconciler_backlog",
+                "Current reconciler backlog depth by engagement class",
+            ),
+            &["class"],
+        )?;
+        registry.register(Box::new(reconciler_backlog.clone()))?;
+        // Pre-initialize all 4 class values so they appear at zero immediately
+        for class in [
+            "pending_engagement",
+            "orphan_compensation",
+            "pending_audit",
+            "overrun_live",
+        ] {
+            reconciler_backlog.with_label_values(&[class]);
+        }
+
         Ok(Self {
             registry,
             registry_adapter_kind,
@@ -293,6 +355,12 @@ impl Metrics {
             watch_stream_duration_seconds,
             listen_notify_fanout_latency_seconds,
             audit_insert_duration_seconds,
+            active_engagements,
+            active_watches,
+            in_flight_invocations,
+            db_pool_in_use,
+            db_pool_idle,
+            reconciler_backlog,
         })
     }
 
@@ -375,6 +443,11 @@ mod tests {
     #[test]
     fn all_gauges_registered() {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        // Touch labeled gauge Vecs so their families appear in gather_text output.
+        // prometheus 0.13 omits empty Vec families; these sentinel values have no
+        // side effects (test-only throwaway instance).
+        m.active_engagements.with_label_values(&["_"]);
+        m.active_watches.with_label_values(&["_"]);
         let text = m.gather_text().unwrap();
         for name in [
             "engagementhub_active_engagements",
