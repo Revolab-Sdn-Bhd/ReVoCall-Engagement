@@ -9,7 +9,9 @@ fn trace_query() -> Command {
 
 fn bin_path() -> PathBuf {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    PathBuf::from(&manifest).join("../../bin/trace-query")
+    let p = PathBuf::from(&manifest).join("../../bin/trace-query");
+    assert!(p.exists(), "trace-query not found at {p:?}; run: ln -s ../revolab-observability/tools/trace-query bin/trace-query");
+    p
 }
 
 fn fixture_dir() -> PathBuf {
@@ -36,6 +38,11 @@ fn engagement_returns_spans_for_id() {
             "eng-001"
         );
     }
+    let ops: Vec<&str> = spans.iter()
+        .map(|s| s["operation"].as_str().unwrap())
+        .collect();
+    assert!(ops.contains(&"op-fast"),  "missing op-fast in {json}");
+    assert!(ops.contains(&"op-error"), "missing op-error in {json}");
 }
 
 #[test]
@@ -47,7 +54,7 @@ fn trace_returns_spans_for_trace_id() {
         .output()
         .unwrap();
 
-    assert!(output.status.success());
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let spans = json.as_array().unwrap();
     assert_eq!(spans.len(), 1, "{json}");
@@ -55,7 +62,7 @@ fn trace_returns_spans_for_trace_id() {
 }
 
 #[test]
-fn slow_returns_only_spans_above_threshold() {
+fn slow_returns_spans_at_or_above_threshold() {
     let output = trace_query()
         .arg("slow")
         .arg("1000")
