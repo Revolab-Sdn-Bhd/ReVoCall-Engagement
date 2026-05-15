@@ -73,6 +73,8 @@ pub struct Config {
 pub enum ConfigError {
     #[error("EH_REGISTRY_ADAPTER=stub is forbidden in production unless EH_TRACK_0_IDLE_MODE=true")]
     ProdStubWithoutIdle,
+    #[error("EH_DB_STATEMENT_TIMEOUT_MS=0 disables the statement timeout entirely; set to >= 1")]
+    StatementTimeoutDisabled,
 }
 
 impl Config {
@@ -82,6 +84,9 @@ impl Config {
             && !self.track_0_idle_mode
         {
             return Err(ConfigError::ProdStubWithoutIdle);
+        }
+        if self.db_statement_timeout_ms == 0 {
+            return Err(ConfigError::StatementTimeoutDisabled);
         }
         Ok(())
     }

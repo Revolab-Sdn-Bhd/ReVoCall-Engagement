@@ -47,3 +47,15 @@ fn dev_stub_ok() {
     c.env = Env::Dev;
     c.validate().expect("must accept dev+stub");
 }
+
+#[test]
+fn zero_statement_timeout_rejected() {
+    let mut c = base();
+    // Use dev env so we don't hit ProdStubWithoutIdle first
+    c.env = Env::Dev;
+    c.db_statement_timeout_ms = 0;
+    assert!(matches!(
+        c.validate(),
+        Err(ConfigError::StatementTimeoutDisabled)
+    ));
+}
