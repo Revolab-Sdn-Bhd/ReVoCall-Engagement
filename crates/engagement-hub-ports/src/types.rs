@@ -12,12 +12,20 @@ use uuid::Uuid;
 // ID newtypes
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EngagementId(pub Uuid);
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct EngagementId(Uuid);
 
 impl EngagementId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
+    }
+
+    pub fn into_uuid(self) -> Uuid {
+        self.0
+    }
+
+    pub fn as_uuid(&self) -> &Uuid {
+        &self.0
     }
 }
 
@@ -27,12 +35,26 @@ impl From<Uuid> for EngagementId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct VoiceProfileId(pub Uuid);
+impl std::fmt::Display for EngagementId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct VoiceProfileId(Uuid);
 
 impl VoiceProfileId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
+    }
+
+    pub fn into_uuid(self) -> Uuid {
+        self.0
+    }
+
+    pub fn as_uuid(&self) -> &Uuid {
+        &self.0
     }
 }
 
@@ -42,18 +64,38 @@ impl From<Uuid> for VoiceProfileId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TelephonyId(pub Uuid);
+impl std::fmt::Display for VoiceProfileId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TelephonyId(Uuid);
 
 impl TelephonyId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
+    }
+
+    pub fn into_uuid(self) -> Uuid {
+        self.0
+    }
+
+    pub fn as_uuid(&self) -> &Uuid {
+        &self.0
     }
 }
 
 impl From<Uuid> for TelephonyId {
     fn from(id: Uuid) -> Self {
         Self(id)
+    }
+}
+
+impl std::fmt::Display for TelephonyId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
