@@ -222,18 +222,22 @@ pub fn spans_to_traces_data(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test helpers  (available to tests AND examples; not part of the public API)
+// Test helpers (only compiled under `cfg(test)`; not part of the public API)
 // ──────────────────────────────────────────────────────────────────────────────
 
-#[doc(hidden)]
-pub enum StatusForTest {
+#[cfg(test)]
+pub(crate) enum StatusForTest {
     Ok,
     Error,
     Unset,
 }
 
-#[doc(hidden)]
-pub fn fake_span_for_test(name: &'static str, duration_ms: u64, status: StatusForTest) -> SpanData {
+#[cfg(test)]
+pub(crate) fn fake_span_for_test(
+    name: &'static str,
+    duration_ms: u64,
+    status: StatusForTest,
+) -> SpanData {
     use opentelemetry::InstrumentationScope;
     use opentelemetry::trace::{SpanContext, TraceFlags, TraceId, TraceState};
     use std::borrow::Cow;
