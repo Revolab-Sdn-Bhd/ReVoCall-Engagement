@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// ── Core entity ───────────────────────────────────────────────────────────────
+
+message Engagement {
+  string engagement_id              = 1;
+  string organization_id            = 2;
+  Channel channel                   = 3;
+  EngagementMode mode               = 4;
+  JourneyVersionRef journey_version = 5;
+  optional string snapshot_id       = 6;
+  ContactRef contact                = 7;
+  optional string batch_id          = 8;
+  PrincipalRef created_by           = 9;
+  EngagementStatus status           = 10;
+  optional EngagementError error    = 11;
+  map<string, string> metadata      = 12;
+  google.protobuf.Timestamp created_at          = 20;
+  google.protobuf.Timestamp updated_at          = 21;
+  optional google.protobuf.Timestamp started_at = 22;
+  optional google.protobuf.Timestamp ended_at   = 23;
+  reserved 100 to 199;
+}
+
+// ── Reference types ───────────────────────────────────────────────────────────
+
+message JourneyVersionRef {
+  string journey_id = 1;
+  string version    = 2;
+}
+
+message ContactRef {
+  oneof identity {
+    string contact_id = 1;
+    PhoneNumber phone = 2;
+  }
+  optional string display_name = 3;
+}
+
+message PhoneNumber {
+  string e164 = 1;
+}
+
+message PrincipalRef {
+  oneof principal {
+    string user_id         = 1;
+    string service_account = 2;
+  }
+}
+
+// VoiceConfig is used in control.proto request messages (Start, Resolve).
+// It is intentionally absent from the Engagement entity (per PRD §5).
+message VoiceConfig {
+  optional string voice_profile_ref              = 1;
+  optional string telephony_id                   = 2;
+  optional google.protobuf.Duration max_duration = 3;
+  optional bool record                           = 4;
+  reserved 100 to 199;
+}
+
+// ── Error type ────────────────────────────────────────────────────────────────
+
+message EngagementError {
+  EngagementErrorCode code               = 1;
+  string message                         = 2;
+  optional string downstream_service     = 3;
+  map<string, string> details            = 4;
+}
+
+// ── Enums ─────────────────────────────────────────────────────────────────────
+
+enum Channel {
+  CHANNEL_UNSPECIFIED = 0;
+  CHANNEL_VOICE       = 1;
+  reserved 2 to 9;
+  reserved 1000 to 1999;
+}
+
+enum EngagementMode {
+  ENGAGEMENT_MODE_UNSPECIFIED = 0;
+  ENGAGEMENT_MODE_OUTBOUND    = 1;
+  reserved 2;
+  reserved 1000 to 1999;
+}
+
+enum EngagementStatus {
+  ENGAGEMENT_STATUS_UNSPECIFIED = 0;
+  ENGAGEMENT_STATUS_PENDING     = 1;
+  ENGAGEMENT_STATUS_INVOKING    = 2;
+  ENGAGEMENT_STATUS_LIVE        = 3;
+  ENGAGEMENT_STATUS_COMPLETED   = 4;
+  ENGAGEMENT_STATUS_FAILED      = 5;
+  ENGAGEMENT_STATUS_CANCELLED   = 6;
+  reserved 100 to 199;
+  reserved 1000 to 1999;
+}
+
+enum EngagementEventType {
+  ENGAGEMENT_EVENT_TYPE_UNSPECIFIED          = 0;
+  ENGAGEMENT_EVENT_TYPE_STREAM_OPENED        = 1;
+  ENGAGEMENT_EVENT_TYPE_CREATED              = 2;
+  ENGAGEMENT_EVENT_TYPE_ROUTE_RESOLVED       = 3;
+  ENGAGEMENT_EVENT_TYPE_INVOCATION_REQUESTED = 4;
+  ENGAGEMENT_EVENT_TYPE_JOURNEY_BOUND        = 5;
+  ENGAGEMENT_EVENT_TYPE_VOICE_SESSION_BOUND  = 6;
+  ENGAGEMENT_EVENT_TYPE_LIVE                 = 7;
+  ENGAGEMENT_EVENT_TYPE_STATUS_UPDATE        = 8;
+  ENGAGEMENT_EVENT_TYPE_COMPLETED            = 9;
+  ENGAGEMENT_EVENT_TYPE_FAILED               = 10;
+  ENGAGEMENT_EVENT_TYPE_CANCELLED            = 11;
+  ENGAGEMENT_EVENT_TYPE_HEARTBEAT            = 12;
+  ENGAGEMENT_EVENT_TYPE_STREAM_OVERFLOW      = 13;
+  reserved 1000 to 1999;
+}
+
+enum EngagementErrorCode {
+  ENGAGEMENT_ERROR_CODE_UNSPECIFIED                 = 0;
+  ENGAGEMENT_ERROR_CODE_ROUTE_RESOLUTION_FAILED     = 1;
+  ENGAGEMENT_ERROR_CODE_JOURNEY_VERSION_NOT_FOUND   = 2;
+  ENGAGEMENT_ERROR_CODE_TELEPHONY_NOT_AVAILABLE     = 3;
+  ENGAGEMENT_ERROR_CODE_VOICE_PROFILE_NOT_FOUND     = 4;
+  ENGAGEMENT_ERROR_CODE_VOICE_SESSION_REJECTED      = 10;
+  ENGAGEMENT_ERROR_CODE_JOURNEY_EXECUTION_REJECTED  = 11;
+  ENGAGEMENT_ERROR_CODE_REGISTRY_UNAVAILABLE        = 12;
+  ENGAGEMENT_ERROR_CODE_CONTACT_UNREACHABLE         = 20;
+  ENGAGEMENT_ERROR_CODE_CALL_ENDED_WITH_ERROR       = 21;
+  ENGAGEMENT_ERROR_CODE_ORG_QUOTA_EXCEEDED          = 30;
+  ENGAGEMENT_ERROR_CODE_ENGAGEMENT_NOT_FOUND        = 31;
+  ENGAGEMENT_ERROR_CODE_ENGAGEMENT_ALREADY_TERMINAL = 32;
+  ENGAGEMENT_ERROR_CODE_REQUEST_ID_CONFLICT         = 33;
+  ENGAGEMENT_ERROR_CODE_INTERNAL                    = 99;
+  reserved 1000 to 1999;
+}

@@ -1,0 +1,285 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+import "revocall/engagement/v1/engagement.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// ── History / output extraction (proxied to post-call service) ────────────────
+
+message GetEngagementTranscriptRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  reserved 100 to 199;
+}
+
+message TranscriptTurn {
+  string speaker                       = 1;
+  string text                          = 2;
+  double confidence                    = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp ended_at   = 5;
+}
+
+message GetEngagementTranscriptResponse {
+  string engagement_id          = 1;
+  repeated TranscriptTurn turns = 2;
+}
+
+message GetEngagementSummaryRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  reserved 100 to 199;
+}
+
+message GetEngagementSummaryResponse {
+  string engagement_id = 1;
+  string summary       = 2;
+}
+
+message GetEngagementSentimentRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  reserved 100 to 199;
+}
+
+message SentimentScore {
+  double positive = 1;
+  double neutral  = 2;
+  double negative = 3;
+}
+
+message GetEngagementSentimentResponse {
+  string engagement_id   = 1;
+  SentimentScore overall = 2;
+  SentimentScore agent   = 3;
+  SentimentScore contact = 4;
+}
+
+message GetEngagementOutputExtractionRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  reserved 100 to 199;
+}
+
+message GetEngagementOutputExtractionResponse {
+  string engagement_id        = 1;
+  map<string, string> outputs = 2;
+}
+
+// ── Call logs (proxied to post-call / history service) ────────────────────────
+
+message CallLog {
+  string call_id                       = 1;
+  string engagement_id                 = 2;
+  string organization_id               = 3;
+  string agent_id                      = 4;
+  string contact_number                = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp ended_at   = 7;
+  int32 duration_seconds               = 8;
+  EngagementStatus outcome             = 9;
+  optional string batch_id             = 10;
+  reserved 100 to 199;
+}
+
+message ListAgentCallLogsRequest {
+  string organization_id               = 1;
+  string agent_id                      = 2;
+  google.protobuf.Timestamp start_date = 3;
+  google.protobuf.Timestamp end_date   = 4;
+  optional string contact_number       = 5;
+  optional string call_id              = 6;
+  optional string batch_id             = 7;
+  int32 page_size                      = 8;
+  string page_token                    = 9;
+  reserved 100 to 199;
+}
+
+message ListAgentCallLogsResponse {
+  repeated CallLog logs  = 1;
+  string next_page_token = 2;
+}
+
+message ListOrganizationCallLogsRequest {
+  string organization_id               = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date   = 3;
+  optional string contact_number       = 4;
+  optional string call_id              = 5;
+  int32 page_size                      = 6;
+  string page_token                    = 7;
+  reserved 100 to 199;
+}
+
+message ListOrganizationCallLogsResponse {
+  repeated CallLog logs  = 1;
+  string next_page_token = 2;
+}
+
+// ── Telephony CRUD (proxied to Voice Manager) ─────────────────────────────────
+
+message Telephony {
+  string telephony_id                = 1;
+  string organization_id             = 2;
+  string name                        = 3;
+  string sip_trunk_id                = 4;
+  repeated PhoneNumber phone_numbers = 5;
+  bool active                        = 6;
+  map<string, string> metadata       = 7;
+  google.protobuf.Timestamp created_at = 20;
+  google.protobuf.Timestamp updated_at = 21;
+  reserved 100 to 199;
+}
+
+message CreateTelephonyRequest {
+  string organization_id             = 1;
+  string request_id                  = 2;
+  string name                        = 3;
+  string sip_trunk_id                = 4;
+  repeated PhoneNumber phone_numbers = 5;
+  map<string, string> metadata       = 6;
+  reserved 100 to 199;
+}
+
+message CreateTelephonyResponse {
+  Telephony telephony = 1;
+}
+
+message ListTelephoniesRequest {
+  string organization_id = 1;
+  int32 page_size        = 2;
+  string page_token      = 3;
+  reserved 100 to 199;
+}
+
+message ListTelephoniesResponse {
+  repeated Telephony telephonies = 1;
+  string next_page_token         = 2;
+}
+
+message GetTelephonyRequest {
+  string organization_id = 1;
+  string telephony_id    = 2;
+  reserved 100 to 199;
+}
+
+message GetTelephonyResponse {
+  Telephony telephony = 1;
+}
+
+message UpdateTelephonyRequest {
+  string organization_id             = 1;
+  string telephony_id                = 2;
+  string request_id                  = 3;
+  optional string name               = 4;
+  optional string sip_trunk_id       = 5;
+  repeated PhoneNumber phone_numbers = 6;
+  optional bool active               = 7;
+  map<string, string> metadata       = 8;
+  google.protobuf.FieldMask update_mask = 20;
+  reserved 100 to 199;
+}
+
+message UpdateTelephonyResponse {
+  Telephony telephony = 1;
+}
+
+message DeleteTelephonyRequest {
+  string organization_id = 1;
+  string telephony_id    = 2;
+  string request_id      = 3;
+  optional string usage  = 4;
+  reserved 100 to 199;
+}
+
+message DeleteTelephonyResponse {}
+
+// ── Analytics (proxied to ai-handler today; future analytics service) ──────────
+
+enum AnalyticMetric {
+  ANALYTIC_METRIC_UNSPECIFIED     = 0;
+  ANALYTIC_METRIC_CALL_COUNT      = 1;
+  ANALYTIC_METRIC_CALL_DURATION   = 2;
+  ANALYTIC_METRIC_ANSWER_RATE     = 3;
+  ANALYTIC_METRIC_COMPLETION_RATE = 4;
+  ANALYTIC_METRIC_FAILURE_RATE    = 5;
+  reserved 1000 to 1999;
+}
+
+enum AnalyticGranularity {
+  ANALYTIC_GRANULARITY_UNSPECIFIED = 0;
+  ANALYTIC_GRANULARITY_HOUR        = 1;
+  ANALYTIC_GRANULARITY_DAY         = 2;
+  ANALYTIC_GRANULARITY_WEEK        = 3;
+  ANALYTIC_GRANULARITY_MONTH       = 4;
+  reserved 1000 to 1999;
+}
+
+message AnalyticDataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double value                        = 2;
+}
+
+message AnalyticSeries {
+  repeated AnalyticDataPoint data_points = 1;
+}
+
+message GetAgentAnalyticsRequest {
+  string organization_id               = 1;
+  string agent_id                      = 2;
+  google.protobuf.Timestamp start_date = 3;
+  google.protobuf.Timestamp end_date   = 4;
+  repeated AnalyticMetric metrics      = 5;
+  AnalyticGranularity granularity      = 6;
+  reserved 100 to 199;
+}
+
+message GetAgentAnalyticsResponse {
+  string agent_id                              = 1;
+  map<string, AnalyticSeries> series_by_metric = 2;
+}
+
+message GetAgentMetricsRequest {
+  string organization_id               = 1;
+  string agent_id                      = 2;
+  google.protobuf.Timestamp start_date = 3;
+  google.protobuf.Timestamp end_date   = 4;
+  repeated AnalyticMetric metrics      = 5;
+  reserved 100 to 199;
+}
+
+message GetAgentMetricsResponse {
+  string agent_id            = 1;
+  map<string, double> metrics = 2;
+}
+
+message GetOrganizationAnalyticsRequest {
+  string organization_id               = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date   = 3;
+  repeated AnalyticMetric metrics      = 4;
+  AnalyticGranularity granularity      = 5;
+  reserved 100 to 199;
+}
+
+message GetOrganizationAnalyticsResponse {
+  string organization_id                       = 1;
+  map<string, AnalyticSeries> series_by_metric = 2;
+}
+
+message GetOrganizationMetricsRequest {
+  string organization_id               = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date   = 3;
+  repeated AnalyticMetric metrics      = 4;
+  reserved 100 to 199;
+}
+
+message GetOrganizationMetricsResponse {
+  string organization_id      = 1;
+  map<string, double> metrics = 2;
+}
