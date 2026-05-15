@@ -25,7 +25,11 @@ impl IsRetryable for RegistryError {
         matches!(self, Self::Transient(_) | Self::Unavailable)
     }
 }
-impl FromPanic for RegistryError { fn from_panic() -> Self { Self::InternalPanic } }
+impl FromPanic for RegistryError {
+    fn from_panic() -> Self {
+        Self::InternalPanic
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum JmError {
@@ -44,7 +48,11 @@ impl IsRetryable for JmError {
         matches!(self, Self::Transient(_) | Self::Unavailable)
     }
 }
-impl FromPanic for JmError { fn from_panic() -> Self { Self::InternalPanic } }
+impl FromPanic for JmError {
+    fn from_panic() -> Self {
+        Self::InternalPanic
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum VmError {
@@ -63,7 +71,11 @@ impl IsRetryable for VmError {
         matches!(self, Self::Transient(_) | Self::Unavailable)
     }
 }
-impl FromPanic for VmError { fn from_panic() -> Self { Self::InternalPanic } }
+impl FromPanic for VmError {
+    fn from_panic() -> Self {
+        Self::InternalPanic
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum PostCallError {
@@ -82,7 +94,11 @@ impl IsRetryable for PostCallError {
         matches!(self, Self::Transient(_) | Self::Unavailable)
     }
 }
-impl FromPanic for PostCallError { fn from_panic() -> Self { Self::InternalPanic } }
+impl FromPanic for PostCallError {
+    fn from_panic() -> Self {
+        Self::InternalPanic
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum AnalyticsError {
@@ -101,4 +117,8 @@ impl IsRetryable for AnalyticsError {
         matches!(self, Self::Transient(_) | Self::Unavailable)
     }
 }
-impl FromPanic for AnalyticsError { fn from_panic() -> Self { Self::InternalPanic } }
+impl FromPanic for AnalyticsError {
+    fn from_panic() -> Self {
+        Self::InternalPanic
+    }
+}
