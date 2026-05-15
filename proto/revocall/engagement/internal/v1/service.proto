@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package revocall.engagement.internal.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/internal/v1;engagementinternalv1";
+
+// Auth (v1): plaintext intra-cluster, no mTLS.
+// NetworkPolicy: ingress restricted to voice-manager + journey-manager namespaces.
+// Caller MUST set x-revolab-caller-service metadata (unsigned; audit-only).
+// Idempotency: (engagement_id, request_id) pair; duplicate events are discarded.
+// Auth (v2): mTLS with SPIFFE SAN when Platform Service Auth PRD ships.
+
+// buf:lint:ignore SERVICE_SUFFIX
+service EngagementHubInternal {
+  rpc NotifyEngagementLifecycleEvent(NotifyEngagementLifecycleEventRequest)
+      returns (NotifyEngagementLifecycleEventResponse);
+}
+
+message NotifyEngagementLifecycleEventRequest {
+  string organization_id                = 1;
+  string engagement_id                  = 2;
+  string request_id                     = 3;
+  LifecycleEvent event                  = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+}
+
+message NotifyEngagementLifecycleEventResponse {}
+
+message LifecycleEvent {
+  oneof event {
+    DialingStarted    dialing_started    = 1;
+    CallAnswered      call_answered      = 2;
+    VoicemailDetected voicemail_detected = 3;
+    CallTransferred   call_transferred   = 4;
+    CallEnded         call_ended         = 5;
+    JourneyCompleted  journey_completed  = 6;
+    JourneyFailed     journey_failed     = 7;
+  }
+}
+
+// Placeholder event types — payloads defined when ai-handler (T4) is implemented.
+// reserved 1 to 99 holds field-number space for future payload fields without renumbering.
+message DialingStarted    { reserved 1 to 99; }
+message CallAnswered      { reserved 1 to 99; }
+message VoicemailDetected { reserved 1 to 99; }
+message CallTransferred   { reserved 1 to 99; }
+message CallEnded         { reserved 1 to 99; }
+message JourneyCompleted  { reserved 1 to 99; }
+message JourneyFailed     { reserved 1 to 99; }
