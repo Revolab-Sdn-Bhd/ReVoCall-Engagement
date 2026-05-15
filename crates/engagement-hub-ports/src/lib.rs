@@ -2,3 +2,6 @@
 
 pub mod types;
 pub use types::*;
+
+pub mod error;
+pub use error::*;
