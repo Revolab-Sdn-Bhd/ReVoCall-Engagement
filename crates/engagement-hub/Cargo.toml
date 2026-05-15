@@ -33,3 +33,4 @@ serde_json.workspace = true
 reqwest.workspace = true
 assert_cmd.workspace = true
 predicates.workspace = true
+scopeguard.workspace = true
