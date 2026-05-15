@@ -17,6 +17,13 @@ fn base() -> Config {
         db_acquire_timeout_secs: 3,
         db_max_lifetime_secs: 1800,
         log_format: LogFormat::Json,
+        otel_export_grafana: true,
+        otel_export_langfuse: false,
+        otel_export_local: false,
+        otel_grafana_endpoint: "http://localhost:4317".into(),
+        otel_langfuse_endpoint: "https://cloud.langfuse.com/api/public/otel".into(),
+        langfuse_public_key: None,
+        langfuse_secret_key: None,
     }
 }
 

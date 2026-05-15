@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# trace-query — query local OTLP JSONL trace files
+# Lives in revolab-observability/tools/; symlinked from each service repo's bin/
+# Reads .traces/*.jsonl relative to the current working directory.
+set -euo pipefail
+
+TRACES_DIR="${TRACES_DIR:-.traces}"
+THRESHOLD_MS="${2:-1000}"
+
+# jq snippet to extract flat span records from one OTLP JSON envelope line
+JQ_FLATTEN='
+  .resourceSpans[].scopeSpans[].spans[]
+  | {
+      trace_id:    .traceId,
+      span_id:     .spanId,
+      operation:   .name,
+      duration_ms: (((.endTimeUnixNano | tonumber) - (.startTimeUnixNano | tonumber)) / 1000000),
+      status:      .status.code,
+      attrs:       ([.attributes[]? | {(.key): .value.stringValue}] | add // {})
+    }
+'
+
+usage() {
+  echo "Usage: trace-query <subcommand> [arg]"
+  echo ""
+  echo "Subcommands:"
+  echo "  engagement <engagement_id>   spans for a specific engagement"
+  echo "  trace <trace_id>             all spans for a trace ID"
+  echo "  slow [threshold_ms]          spans >= threshold_ms (default: 1000)"
+  echo "  errors                       spans with STATUS_CODE_ERROR"
+  exit 1
+}
+
+if [[ $# -lt 1 ]]; then usage; fi
+
+FILES=("$TRACES_DIR"/*.jsonl)
+if [[ ! -e "${FILES[0]}" ]]; then
+  echo "[]"
+  exit 0
+fi
+
+case "$1" in
+  engagement)
+    [[ $# -lt 2 ]] && { echo "error: engagement requires an id"; exit 1; }
+    ID="$2"
+    jq -cn --arg id "$ID" \
+      "[inputs | $JQ_FLATTEN | select(.attrs[\"revolab.engagement_id\"] == \$id)]" \
+      "${FILES[@]}"
+    ;;
+  trace)
+    [[ $# -lt 2 ]] && { echo "error: trace requires a trace_id"; exit 1; }
+    TID="$2"
+    jq -cn --arg tid "$TID" \
+      "[inputs | $JQ_FLATTEN | select(.trace_id == \$tid)]" \
+      "${FILES[@]}"
+    ;;
+  slow)
+    jq -cn --argjson ms "$THRESHOLD_MS" \
+      "[inputs | $JQ_FLATTEN | select(.duration_ms >= \$ms)]" \
+      "${FILES[@]}"
+    ;;
+  errors)
+    jq -cn \
+      '[inputs | '"$JQ_FLATTEN"' | select(.status == "STATUS_CODE_ERROR")]' \
+      "${FILES[@]}"
+    ;;
+  *)
+    usage
+    ;;
+esac

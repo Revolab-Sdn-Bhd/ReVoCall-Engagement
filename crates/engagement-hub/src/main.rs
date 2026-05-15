@@ -2,29 +2,54 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Parser;
-use tracing_subscriber::{EnvFilter, prelude::*};
 
 use engagement_hub::{
-    config::{Config, ConfigError, LogFormat, RegistryAdapter},
+    config::{
+        Config, ConfigError, RegistryAdapter, apply_otel_local_default, apply_otel_type_legacy,
+    },
     db,
     metrics::Metrics,
     server::{grpc, http},
     shutdown::{Shutdown, wait_for_signal},
+    telemetry,
 };
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cfg = Config::parse();
+    let mut cfg = Config::parse();
 
     if let Err(e) = cfg.validate() {
         eprintln!("invalid config: {e}");
-        // ConfigError values map 1:1 to exit code 78 today; expand later when
-        // validation grows.
         let _: ConfigError = e;
-        std::process::exit(78); // EX_CONFIG
+        std::process::exit(78);
     }
 
-    init_tracing(cfg.log_format);
+    apply_otel_local_default(&mut cfg, std::env::var_os("OTEL_EXPORT_LOCAL").is_some());
+
+    // Legacy OTEL_TYPE deprecation (before init so translation actually takes effect)
+    let otel_type = std::env::var("OTEL_TYPE").ok();
+    if let Some(ref t) = otel_type {
+        eprintln!(
+            "[otel] OTEL_TYPE={t} is deprecated; use OTEL_EXPORT_GRAFANA / OTEL_EXPORT_LANGFUSE / OTEL_EXPORT_LOCAL"
+        );
+        apply_otel_type_legacy(&mut cfg, Some(t.as_str()));
+    }
+
+    let metrics = Arc::new(Metrics::new(
+        cfg.registry_adapter,
+        cfg.env,
+        cfg.track_0_idle_mode,
+    )?);
+
+    telemetry::init_telemetry(&cfg, &metrics);
+
+    // After telemetry is up, emit structured warn so it appears in logs
+    if let Some(ref t) = otel_type {
+        tracing::warn!(
+            otel_type = %t,
+            "OTEL_TYPE is deprecated; use OTEL_EXPORT_GRAFANA / OTEL_EXPORT_LANGFUSE / OTEL_EXPORT_LOCAL"
+        );
+    }
 
     if cfg.track_0_idle_mode && matches!(cfg.registry_adapter, RegistryAdapter::Grpc) {
         tracing::warn!(
@@ -36,14 +61,9 @@ async fn main() -> Result<()> {
     let pool = db::build_pool(&cfg).await?;
     db::run_migrations(&pool).await.unwrap_or_else(|err| {
         tracing::error!(?err, "migration run failed");
-        std::process::exit(70); // EX_SOFTWARE
+        std::process::exit(70);
     });
 
-    let metrics = Arc::new(Metrics::new(
-        cfg.registry_adapter,
-        cfg.env,
-        cfg.track_0_idle_mode,
-    )?);
     let shutdown = Shutdown::default();
 
     let mut grpc_servers = grpc::spawn(
@@ -66,6 +86,9 @@ async fn main() -> Result<()> {
         env = ?cfg.env,
         adapter = ?cfg.registry_adapter,
         idle = cfg.track_0_idle_mode,
+        otel_grafana = cfg.otel_export_grafana,
+        otel_langfuse = cfg.otel_export_langfuse,
+        otel_local = cfg.otel_export_local,
         external = %cfg.external_grpc_addr,
         internal = %cfg.internal_grpc_addr,
         http = %cfg.http_addr,
@@ -86,25 +109,7 @@ async fn main() -> Result<()> {
     let _ = grpc_servers.internal_handle.await;
 
     pool.close().await;
+    telemetry::shutdown_telemetry();
     tracing::info!("exited cleanly");
     Ok(())
-}
-
-fn init_tracing(format: LogFormat) {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("info,engagement_hub=debug,sqlx::query=warn"));
-
-    let registry = tracing_subscriber::registry().with(env_filter);
-    match format {
-        LogFormat::Pretty => {
-            registry
-                .with(tracing_subscriber::fmt::layer().pretty())
-                .init();
-        }
-        LogFormat::Json => {
-            registry
-                .with(tracing_subscriber::fmt::layer().json())
-                .init();
-        }
-    }
 }

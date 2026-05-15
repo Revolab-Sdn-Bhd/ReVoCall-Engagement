@@ -1,11 +1,12 @@
 use anyhow::Result;
-use prometheus::{IntGaugeVec, Opts, Registry};
+use prometheus::{IntCounterVec, IntGaugeVec, Opts, Registry};
 
 use crate::config::{Env, RegistryAdapter};
 
 pub struct Metrics {
     pub registry: Registry,
     pub registry_adapter_kind: IntGaugeVec,
+    pub otel_exporter_dropped_spans: IntCounterVec,
 }
 
 impl Metrics {
@@ -27,9 +28,23 @@ impl Metrics {
             .with_label_values(&[active.as_metric_label(), env.as_metric_label(), idle_label])
             .set(1);
 
+        let otel_exporter_dropped_spans = IntCounterVec::new(
+            Opts::new(
+                "engagementhub_otel_exporter_dropped_spans_total",
+                "Spans dropped by each OTEL exporter due to queue-full or export error",
+            ),
+            &["exporter"],
+        )?;
+        registry.register(Box::new(otel_exporter_dropped_spans.clone()))?;
+        // Pre-initialize all three so they appear in metrics output at zero
+        for name in ["grafana", "langfuse", "local"] {
+            otel_exporter_dropped_spans.with_label_values(&[name]);
+        }
+
         Ok(Self {
             registry,
             registry_adapter_kind,
+            otel_exporter_dropped_spans,
         })
     }
 
@@ -57,5 +72,21 @@ mod tests {
             ),
             "missing active=stub line with env+idle_mode in:\n{text}"
         );
+    }
+
+    #[test]
+    fn dropped_spans_counter_registered_with_all_labels() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        let text = m.gather_text().unwrap();
+        assert!(
+            text.contains("engagementhub_otel_exporter_dropped_spans_total"),
+            "counter missing:\n{text}"
+        );
+        for exporter in ["grafana", "langfuse", "local"] {
+            assert!(
+                text.contains(&format!(r#"exporter="{exporter}""#)),
+                "label exporter={exporter} missing:\n{text}"
+            );
+        }
     }
 }
