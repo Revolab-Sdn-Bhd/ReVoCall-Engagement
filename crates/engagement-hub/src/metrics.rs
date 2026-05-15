@@ -1,7 +1,7 @@
 use anyhow::Result;
 use prometheus::{IntGaugeVec, Opts, Registry};
 
-use crate::config::RegistryAdapter;
+use crate::config::{Env, RegistryAdapter};
 
 pub struct Metrics {
     pub registry: Registry,
@@ -9,7 +9,7 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    pub fn new(active: RegistryAdapter) -> Result<Self> {
+    pub fn new(active: RegistryAdapter, env: Env, idle_mode: bool) -> Result<Self> {
         let registry = Registry::new();
 
         let registry_adapter_kind = IntGaugeVec::new(
@@ -17,15 +17,14 @@ impl Metrics {
                 "engagementhub_registry_adapter_kind",
                 "Active Registry adapter implementation (1 for the active kind, 0 for others)",
             ),
-            &["kind"],
+            &["kind", "env", "idle_mode"],
         )?;
         registry.register(Box::new(registry_adapter_kind.clone()))?;
 
-        // Initialize both labels so absence ≠ "kind not yet observed".
-        registry_adapter_kind.with_label_values(&["stub"]).set(0);
-        registry_adapter_kind.with_label_values(&["grpc"]).set(0);
+        // Pre-initialize the active combination only (single-replica static fact).
+        let idle_label = if idle_mode { "true" } else { "false" };
         registry_adapter_kind
-            .with_label_values(&[active.as_metric_label()])
+            .with_label_values(&[active.as_metric_label(), env.as_metric_label(), idle_label])
             .set(1);
 
         Ok(Self {
@@ -49,16 +48,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn active_kind_is_one_others_zero() {
-        let m = Metrics::new(RegistryAdapter::Stub).unwrap();
+    fn active_kind_has_all_three_labels() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
         let text = m.gather_text().unwrap();
         assert!(
-            text.contains(r#"engagementhub_registry_adapter_kind{kind="stub"} 1"#),
-            "missing active=stub line in:\n{text}"
-        );
-        assert!(
-            text.contains(r#"engagementhub_registry_adapter_kind{kind="grpc"} 0"#),
-            "missing inactive=grpc line in:\n{text}"
+            text.contains(
+                r#"engagementhub_registry_adapter_kind{env="dev",idle_mode="false",kind="stub"} 1"#
+            ),
+            "missing active=stub line with env+idle_mode in:\n{text}"
         );
     }
 }

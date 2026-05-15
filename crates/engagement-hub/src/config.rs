@@ -16,6 +16,16 @@ pub enum Env {
     Production,
 }
 
+impl Env {
+    pub fn as_metric_label(self) -> &'static str {
+        match self {
+            Env::Dev => "dev",
+            Env::Staging => "staging",
+            Env::Production => "production",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum RegistryAdapter {
     Stub,

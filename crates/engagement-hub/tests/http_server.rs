@@ -1,6 +1,10 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
-use engagement_hub::{config::RegistryAdapter, metrics::Metrics, server::http};
+use engagement_hub::{
+    config::{Env, RegistryAdapter},
+    metrics::Metrics,
+    server::http,
+};
 use tokio::sync::watch;
 
 async fn bind_test_addr() -> SocketAddr {
@@ -13,7 +17,7 @@ async fn bind_test_addr() -> SocketAddr {
 #[tokio::test]
 async fn livez_returns_ok() {
     let addr = bind_test_addr().await;
-    let metrics = Arc::new(Metrics::new(RegistryAdapter::Stub).unwrap());
+    let metrics = Arc::new(Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap());
     let (drain_tx, drain_rx) = watch::channel(false);
     let (shut_tx, shut_rx) = watch::channel(false);
 
@@ -30,7 +34,12 @@ async fn livez_returns_ok() {
         .text()
         .await
         .unwrap();
-    assert!(metrics_text.contains(r#"engagementhub_registry_adapter_kind{kind="stub"} 1"#));
+    assert!(
+        metrics_text.contains(
+            r#"engagementhub_registry_adapter_kind{env="dev",idle_mode="false",kind="stub"} 1"#
+        ),
+        "missing active=stub metric line in:\n{metrics_text}"
+    );
 
     // /readyz starts as 200, flips to 503 once draining
     let r = reqwest::get(format!("http://{addr}/readyz")).await.unwrap();

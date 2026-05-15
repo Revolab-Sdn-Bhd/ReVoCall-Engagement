@@ -74,7 +74,9 @@ async fn normal_start_serves_all_three_ports() {
 
     let metrics = wait_http(http, "/metrics").await.text().await.unwrap();
     assert!(
-        metrics.contains(r#"engagementhub_registry_adapter_kind{kind="stub"} 1"#),
+        metrics.contains(
+            r#"engagementhub_registry_adapter_kind{env="dev",idle_mode="false",kind="stub"} 1"#
+        ),
         "metrics: {metrics}"
     );
 
