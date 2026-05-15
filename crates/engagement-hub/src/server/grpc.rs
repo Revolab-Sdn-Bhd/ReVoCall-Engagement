@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::{net::SocketAddr, time::Duration};
 
 use anyhow::{Context, Result};
 use tokio::sync::watch;
@@ -27,6 +27,8 @@ pub async fn spawn(
     let internal_shutdown = shutdown.clone();
     let internal_handle = tokio::spawn(async move {
         Server::builder()
+            .tcp_keepalive(Some(Duration::from_secs(30)))
+            .http2_keepalive_interval(Some(Duration::from_secs(30)))
             .add_service(internal_health_svc)
             .serve_with_shutdown(internal_addr, async move {
                 let mut s = internal_shutdown;
@@ -46,6 +48,8 @@ pub async fn spawn(
         let mut ext_shutdown = shutdown.clone();
         let h = tokio::spawn(async move {
             Server::builder()
+                .tcp_keepalive(Some(Duration::from_secs(30)))
+                .http2_keepalive_interval(Some(Duration::from_secs(30)))
                 .add_service(svc)
                 .serve_with_shutdown(external_addr, async move {
                     let _ = ext_shutdown.wait_for(|v| *v).await;
