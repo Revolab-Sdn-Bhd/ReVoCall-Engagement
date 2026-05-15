@@ -1,0 +1,10 @@
+/target/
+**/*.rs.bk
+Cargo.lock.bak
+.env
+.env.local
+.DS_Store
+.idea/
+.vscode/
+*.swp
+/.traces/
