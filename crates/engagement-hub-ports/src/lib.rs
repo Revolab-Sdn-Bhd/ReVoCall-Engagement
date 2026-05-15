@@ -5,7 +5,6 @@ pub mod types; // fields populated in T1-03
 pub use types::*;
 
 pub mod error;
-pub use error::{FromPanic, IsRetryable};
 pub use error::*;
 
 pub mod ports;
