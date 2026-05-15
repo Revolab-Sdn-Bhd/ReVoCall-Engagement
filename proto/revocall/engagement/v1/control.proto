@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "revocall/engagement/v1/engagement.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// ── StartEngagement ───────────────────────────────────────────────────────────
+
+message StartEngagementRequest {
+  string organization_id            = 1;
+  string request_id                 = 2;
+  Channel channel                   = 3;
+  EngagementMode mode               = 4;
+  JourneyVersionRef journey_version = 5;
+  ContactRef contact                = 6;
+  optional string batch_id          = 7;
+  map<string, string> metadata      = 8;
+  optional VoiceConfig voice        = 9;
+  bool test_mode                    = 10;
+  optional string language          = 11;
+  reserved 100 to 199;
+}
+
+message StartEngagementResponse {
+  Engagement engagement = 1;
+}
+
+// ── StopEngagement ────────────────────────────────────────────────────────────
+
+message StopEngagementRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  string request_id      = 3;
+  optional string reason = 4;
+  reserved 100 to 199;
+}
+
+message StopEngagementResponse {
+  Engagement engagement = 1;
+}
+
+// ── CancelEngagement ──────────────────────────────────────────────────────────
+
+message CancelEngagementRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  string request_id      = 3;
+  optional string reason = 4;
+  reserved 100 to 199;
+}
+
+message CancelEngagementResponse {
+  Engagement engagement = 1;
+}
+
+// ── ResolveEngagementRoute ────────────────────────────────────────────────────
+
+message ResolveEngagementRouteRequest {
+  string organization_id            = 1;
+  Channel channel                   = 2;
+  EngagementMode mode               = 3;
+  JourneyVersionRef journey_version = 4;
+  ContactRef contact                = 5;
+  optional VoiceConfig voice        = 6;
+  reserved 100 to 199;
+}
+
+message ResolveEngagementRouteResponse {
+  string resolved_snapshot_id      = 1;
+  string resolved_journey_version  = 2;
+  string resolved_telephony_id     = 3;
+  string resolved_voice_profile_id = 4;
+  reserved 100 to 199;
+}
+
+// ── IssueVoiceTestToken ───────────────────────────────────────────────────────
+
+message IssueVoiceTestTokenRequest {
+  string organization_id       = 1;
+  string engagement_id         = 2;
+  TestTokenRole role           = 3;
+  google.protobuf.Duration ttl = 4;
+  reserved 100 to 199;
+}
+
+message IssueVoiceTestTokenResponse {
+  string token                         = 1;
+  string room_name                     = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  reserved 100 to 199;
+}
+
+enum TestTokenRole {
+  TEST_TOKEN_ROLE_UNSPECIFIED = 0;
+  TEST_TOKEN_ROLE_LISTENER    = 1;
+  TEST_TOKEN_ROLE_LIVE_AGENT  = 2;
+  reserved 1000 to 1999;
+}
