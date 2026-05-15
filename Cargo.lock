@@ -497,6 +497,13 @@ dependencies = [
 [[package]]
 name = "engagement-hub-adapters"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "engagement-hub-ports",
+ "reqwest",
+ "thiserror 1.0.69",
+ "tokio",
+]
 
 [[package]]
 name = "engagement-hub-domain"
@@ -505,6 +512,13 @@ version = "0.1.0"
 [[package]]
 name = "engagement-hub-ports"
 version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "thiserror 1.0.69",
+ "tokio",
+ "uuid",
+]
 
 [[package]]
 name = "equivalent"

@@ -5,5 +5,17 @@ version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+fake = []
+
+[dependencies]
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
 [lib]
 path = "src/lib.rs"
