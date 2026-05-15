@@ -1,0 +1,120 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+import "google/protobuf/timestamp.proto";
+import "revocall/engagement/v1/engagement.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// ── Watch requests ────────────────────────────────────────────────────────────
+
+message WatchEngagementRequest {
+  string organization_id        = 1;
+  string engagement_id          = 2;
+  optional int64 after_sequence = 3;
+  reserved 100 to 199;
+}
+
+message WatchEngagementsRequest {
+  string organization_id = 1;
+  oneof filter {
+    string batch_id                 = 2;
+    EngagementIdList engagement_ids = 3;
+    EngagementStatusFilter status   = 4;
+  }
+  optional int64 after_sequence = 5;
+  reserved 100 to 199;
+}
+
+// ── EngagementEvent (server-streamed response) ────────────────────────────────
+
+message EngagementEvent {
+  string event_id                       = 1;
+  string organization_id                = 2;
+  string engagement_id                  = 3;
+  EngagementEventType type              = 4;
+  google.protobuf.Timestamp occurred_at = 5;
+  EngagementStatus status_after         = 6;
+  oneof payload {
+    EngagementStreamOpenedPayload        stream_opened        = 7;
+    EngagementCreatedPayload             created              = 8;
+    EngagementRouteResolvedPayload       route_resolved       = 9;
+    EngagementInvocationRequestedPayload invocation_requested = 10;
+    EngagementJourneyBoundPayload        journey_bound        = 11;
+    EngagementVoiceSessionBoundPayload   voice_bound          = 12;
+    EngagementLivePayload                live                 = 13;
+    EngagementStatusUpdatePayload        status_update        = 14;
+    EngagementCompletedPayload           completed            = 15;
+    EngagementFailedPayload              failed               = 16;
+    EngagementCancelledPayload           cancelled            = 17;
+    EngagementHeartbeatPayload           heartbeat            = 18;
+  }
+  optional EngagementError error = 19;
+  int64 sequence                 = 20;
+  reserved 100 to 199;
+}
+
+// ── Payload types (one per event type) ───────────────────────────────────────
+
+message EngagementStreamOpenedPayload {
+  Engagement engagement = 1;
+}
+
+message EngagementCreatedPayload {
+  Engagement engagement = 1;
+}
+
+message EngagementRouteResolvedPayload {
+  string resolved_snapshot_id      = 1;
+  string resolved_journey_version  = 2;
+  string resolved_telephony_id     = 3;
+  string resolved_voice_profile_id = 4;
+}
+
+message EngagementInvocationRequestedPayload {
+  string invocation_id = 1;
+}
+
+message EngagementJourneyBoundPayload {
+  string journey_execution_ref = 1;
+}
+
+message EngagementVoiceSessionBoundPayload {
+  string voice_session_ref = 1;
+  string room_name         = 2;
+}
+
+message EngagementLivePayload {}
+
+message EngagementStatusUpdatePayload {
+  EngagementStatus previous_status = 1;
+  EngagementStatus current_status  = 2;
+}
+
+message EngagementCompletedPayload {
+  optional string summary = 1;
+}
+
+message EngagementFailedPayload {
+  EngagementError error = 1;
+}
+
+message EngagementCancelledPayload {
+  optional string reason       = 1;
+  optional string cancelled_by = 2;
+}
+
+message EngagementHeartbeatPayload {
+  int64 sequence = 1;
+}
+
+// ── Filter helpers ────────────────────────────────────────────────────────────
+
+message EngagementIdList {
+  repeated string engagement_ids = 1;
+}
+
+message EngagementStatusFilter {
+  repeated EngagementStatus statuses = 1;
+}
