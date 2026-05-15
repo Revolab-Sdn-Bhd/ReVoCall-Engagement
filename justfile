@@ -28,3 +28,7 @@ run-dev:
     EH_REGISTRY_ADAPTER=stub \
     EH_DATABASE_URL={{db-url}} \
     cargo run -p engagement-hub
+
+# Regenerate Connect-Go stubs from both proto packages (requires buf 1.69+)
+buf-gen:
+    buf generate
