@@ -64,6 +64,12 @@ impl FakeAnalyticsPort {
     }
 }
 
+impl Default for FakeAnalyticsPort {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl AnalyticsPort for FakeAnalyticsPort {
     async fn get_agent_analytics(
@@ -197,7 +203,7 @@ mod tests {
             fake.get_agent_analytics(GetAgentAnalyticsReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- get_agent_metrics ---
@@ -234,7 +240,7 @@ mod tests {
             fake.get_agent_metrics(GetAgentMetricsReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- get_org_analytics ---
@@ -271,7 +277,7 @@ mod tests {
             fake.get_org_analytics(GetOrgAnalyticsReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- get_org_metrics ---
@@ -308,6 +314,33 @@ mod tests {
             fake.get_org_metrics(GetOrgMetricsReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_analytics_queue_ordering() {
+        let fake = FakeAnalyticsPort::new();
+        // Push transient first, then success
+        fake.push_get_agent_analytics(Outcome::Transient("first".into()));
+        fake.push_get_agent_analytics(Outcome::Success(Analytics {}));
+
+        // First call should be transient
+        let first = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        assert!(matches!(first, Err(AnalyticsError::Transient(ref msg)) if msg == "first"));
+
+        // Second call should be success
+        let second = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        assert!(second.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_analytics_empty_queue_panics() {
+        let fake = FakeAnalyticsPort::new();
+        // Don't push anything
+        let result = tokio::task::spawn(async move {
+            fake.get_agent_analytics(GetAgentAnalyticsReq {}).await
+        })
+        .await;
+        assert!(result.unwrap_err().is_panic());
     }
 }

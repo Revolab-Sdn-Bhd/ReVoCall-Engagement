@@ -18,6 +18,7 @@ pub use analytics::FakeAnalyticsPort;
 /// Injectable response type for fake port implementations.
 ///
 /// Push outcomes onto a fake's queue before calling the method under test.
+#[derive(Debug)]
 pub enum Outcome<T> {
     /// Return `Ok(val)`.
     Success(T),

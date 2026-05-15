@@ -49,6 +49,12 @@ impl FakeRegistryPort {
     }
 }
 
+impl Default for FakeRegistryPort {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl RegistryPort for FakeRegistryPort {
     async fn resolve_snapshot(
@@ -140,7 +146,7 @@ mod tests {
             fake.resolve_snapshot(ResolveSnapshotReq {}).await
         })
         .await;
-        assert!(result.is_err()); // JoinError from panic
+        assert!(result.unwrap_err().is_panic());
     }
 
     #[tokio::test]
@@ -179,6 +185,33 @@ mod tests {
             fake.get_voice_profile(&id).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_snapshot_queue_ordering() {
+        let fake = FakeRegistryPort::new();
+        // Push transient first, then success
+        fake.push_resolve_snapshot(Outcome::Transient("first".into()));
+        fake.push_resolve_snapshot(Outcome::Success(ResolvedSnapshot {}));
+
+        // First call should be transient
+        let first = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        assert!(matches!(first, Err(RegistryError::Transient(ref msg)) if msg == "first"));
+
+        // Second call should be success
+        let second = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        assert!(second.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_resolve_snapshot_empty_queue_panics() {
+        let fake = FakeRegistryPort::new();
+        // Don't push anything
+        let result = tokio::task::spawn(async move {
+            fake.resolve_snapshot(ResolveSnapshotReq {}).await
+        })
+        .await;
+        assert!(result.unwrap_err().is_panic());
     }
 }

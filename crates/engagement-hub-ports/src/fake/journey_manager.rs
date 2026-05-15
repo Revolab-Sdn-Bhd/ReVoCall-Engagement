@@ -57,6 +57,12 @@ impl FakeJourneyManagerPort {
     }
 }
 
+impl Default for FakeJourneyManagerPort {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl JourneyManagerPort for FakeJourneyManagerPort {
     async fn create_execution(
@@ -140,9 +146,10 @@ mod tests {
     #[tokio::test]
     async fn create_execution_success() {
         let fake = FakeJourneyManagerPort::new();
-        fake.push_create_execution(Outcome::Success(exec_ref()));
-        let result = fake.create_execution(CreateExecutionReq {}).await;
-        assert!(result.is_ok());
+        let id = Uuid::new_v4();
+        fake.push_create_execution(Outcome::Success(ExecutionRef::new(id)));
+        let result = fake.create_execution(CreateExecutionReq {}).await.unwrap();
+        assert_eq!(result.as_uuid(), &id);
     }
 
     #[tokio::test]
@@ -177,7 +184,7 @@ mod tests {
             fake.create_execution(CreateExecutionReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     #[tokio::test]
@@ -216,7 +223,7 @@ mod tests {
             fake.cancel_execution(&ref_, CancelReason::UserRequested).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     #[tokio::test]
@@ -255,6 +262,33 @@ mod tests {
             fake.get_execution_timeline(&ref_, TimelineOpts {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
+    }
+
+    #[tokio::test]
+    async fn test_create_execution_queue_ordering() {
+        let fake = FakeJourneyManagerPort::new();
+        // Push transient first, then success
+        fake.push_create_execution(Outcome::Transient("first".into()));
+        fake.push_create_execution(Outcome::Success(exec_ref()));
+
+        // First call should be transient
+        let first = fake.create_execution(CreateExecutionReq {}).await;
+        assert!(matches!(first, Err(JmError::Transient(ref msg)) if msg == "first"));
+
+        // Second call should be success
+        let second = fake.create_execution(CreateExecutionReq {}).await;
+        assert!(second.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_create_execution_empty_queue_panics() {
+        let fake = FakeJourneyManagerPort::new();
+        // Don't push anything
+        let result = tokio::task::spawn(async move {
+            fake.create_execution(CreateExecutionReq {}).await
+        })
+        .await;
+        assert!(result.unwrap_err().is_panic());
     }
 }

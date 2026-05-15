@@ -76,6 +76,12 @@ impl FakePostCallPort {
     }
 }
 
+impl Default for FakePostCallPort {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl PostCallPort for FakePostCallPort {
     async fn get_transcript(
@@ -220,9 +226,9 @@ mod tests {
     #[tokio::test]
     async fn get_transcript_success() {
         let fake = FakePostCallPort::new();
-        fake.push_get_transcript(Outcome::Success(Transcript { text: "hello".into() }));
-        let result = fake.get_transcript(&eng_id()).await;
-        assert!(result.is_ok());
+        fake.push_get_transcript(Outcome::Success(Transcript { text: "hello world".into() }));
+        let result = fake.get_transcript(&eng_id()).await.unwrap();
+        assert_eq!(result.text, "hello world");
     }
 
     #[tokio::test]
@@ -258,7 +264,7 @@ mod tests {
             fake.get_transcript(&id).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- get_summary ---
@@ -266,9 +272,9 @@ mod tests {
     #[tokio::test]
     async fn get_summary_success() {
         let fake = FakePostCallPort::new();
-        fake.push_get_summary(Outcome::Success(Summary { text: "summary".into() }));
-        let result = fake.get_summary(&eng_id()).await;
-        assert!(result.is_ok());
+        fake.push_get_summary(Outcome::Success(Summary { text: "summary text".into() }));
+        let result = fake.get_summary(&eng_id()).await.unwrap();
+        assert_eq!(result.text, "summary text");
     }
 
     #[tokio::test]
@@ -296,7 +302,7 @@ mod tests {
             fake.get_summary(&id).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- get_sentiment ---
@@ -305,8 +311,8 @@ mod tests {
     async fn get_sentiment_success() {
         let fake = FakePostCallPort::new();
         fake.push_get_sentiment(Outcome::Success(Sentiment { score: 0.9 }));
-        let result = fake.get_sentiment(&eng_id()).await;
-        assert!(result.is_ok());
+        let result = fake.get_sentiment(&eng_id()).await.unwrap();
+        assert_eq!(result.score, 0.9);
     }
 
     #[tokio::test]
@@ -334,7 +340,7 @@ mod tests {
             fake.get_sentiment(&id).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- get_output_extraction ---
@@ -372,7 +378,7 @@ mod tests {
             fake.get_output_extraction(&id).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- list_agent_call_logs ---
@@ -409,7 +415,7 @@ mod tests {
             fake.list_agent_call_logs(ListAgentCallLogsReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
     }
 
     // --- list_org_call_logs ---
@@ -446,6 +452,34 @@ mod tests {
             fake.list_org_call_logs(ListOrgCallLogsReq {}).await
         })
         .await;
-        assert!(result.is_err());
+        assert!(result.unwrap_err().is_panic());
+    }
+
+    #[tokio::test]
+    async fn test_get_transcript_queue_ordering() {
+        let fake = FakePostCallPort::new();
+        // Push transient first, then success
+        fake.push_get_transcript(Outcome::Transient("first".into()));
+        fake.push_get_transcript(Outcome::Success(Transcript { text: "ok".into() }));
+
+        // First call should be transient
+        let first = fake.get_transcript(&eng_id()).await;
+        assert!(matches!(first, Err(PostCallError::Transient(ref msg)) if msg == "first"));
+
+        // Second call should be success
+        let second = fake.get_transcript(&eng_id()).await;
+        assert!(second.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_get_transcript_empty_queue_panics() {
+        let fake = FakePostCallPort::new();
+        // Don't push anything
+        let id = eng_id();
+        let result = tokio::task::spawn(async move {
+            fake.get_transcript(&id).await
+        })
+        .await;
+        assert!(result.unwrap_err().is_panic());
     }
 }
