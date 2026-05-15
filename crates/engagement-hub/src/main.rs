@@ -5,7 +5,7 @@ use clap::Parser;
 use tracing_subscriber::{EnvFilter, prelude::*};
 
 use engagement_hub::{
-    config::{Config, ConfigError, LogFormat},
+    config::{Config, ConfigError, LogFormat, RegistryAdapter},
     db,
     metrics::Metrics,
     server::{grpc, http},
@@ -25,6 +25,13 @@ async fn main() -> Result<()> {
     }
 
     init_tracing(cfg.log_format);
+
+    if cfg.track_0_idle_mode && matches!(cfg.registry_adapter, RegistryAdapter::Grpc) {
+        tracing::warn!(
+            "EH_TRACK_0_IDLE_MODE=true with EH_REGISTRY_ADAPTER=grpc — external port \
+             will be unbound, but the real Registry adapter is selected. Did you mean stub?"
+        );
+    }
 
     let pool = db::build_pool(&cfg).await?;
     db::run_migrations(&pool).await.unwrap_or_else(|err| {
