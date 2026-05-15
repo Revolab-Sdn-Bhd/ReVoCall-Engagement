@@ -78,7 +78,7 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 - [x] Task 3: Add 9 histogram fields with bucket boundaries and stage pre-init — `de367f1`
 - [x] Task 4: Add 6 gauge fields + reconciler_backlog pre-init — `e856831`
 - [x] Task 5: Full test run, smoke build, comment fixes, story doc update — `7089754`
-- [ ] Task 6: Kustomize PR — pending
+- [x] Task 6: Kustomize PR (chunzhe/test in RevoCall-Kustomize) + T7-01 comment — `2cbfa0f`
 
 ---
 
