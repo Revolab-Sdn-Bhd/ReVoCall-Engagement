@@ -14,7 +14,7 @@ JQ_FLATTEN='
       trace_id:    .traceId,
       span_id:     .spanId,
       operation:   .name,
-      duration_ms: ((.endTimeUnixNano | tonumber) - (.startTimeUnixNano | tonumber)) / 1000000,
+      duration_ms: (((.endTimeUnixNano | tonumber) - (.startTimeUnixNano | tonumber)) / 1000000),
       status:      .status.code,
       attrs:       ([.attributes[]? | {(.key): .value.stringValue}] | add // {})
     }
@@ -43,24 +43,24 @@ case "$1" in
   engagement)
     [[ $# -lt 2 ]] && { echo "error: engagement requires an id"; exit 1; }
     ID="$2"
-    jq -sc --arg id "$ID" \
+    jq -cn --arg id "$ID" \
       "[inputs | $JQ_FLATTEN | select(.attrs[\"revolab.engagement_id\"] == \$id)]" \
       "${FILES[@]}"
     ;;
   trace)
     [[ $# -lt 2 ]] && { echo "error: trace requires a trace_id"; exit 1; }
     TID="$2"
-    jq -sc --arg tid "$TID" \
+    jq -cn --arg tid "$TID" \
       "[inputs | $JQ_FLATTEN | select(.trace_id == \$tid)]" \
       "${FILES[@]}"
     ;;
   slow)
-    jq -sc --argjson ms "$THRESHOLD_MS" \
+    jq -cn --argjson ms "$THRESHOLD_MS" \
       "[inputs | $JQ_FLATTEN | select(.duration_ms >= \$ms)]" \
       "${FILES[@]}"
     ;;
   errors)
-    jq -sc \
+    jq -cn \
       '[inputs | '"$JQ_FLATTEN"' | select(.status == "STATUS_CODE_ERROR")]' \
       "${FILES[@]}"
     ;;
