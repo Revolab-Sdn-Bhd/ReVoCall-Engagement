@@ -12,16 +12,19 @@ EH's RPC handlers need to call downstream services (Registry, JourneyManager, Vo
 
 **Option A — Proto-generated types in port signatures**
 Use `tonic`/`prost`-generated types directly in the trait signatures. Adapters are trivially thin.
+
 - Pro: No translation layer between port and adapter.
 - Con: All consumers take a hard dependency on the proto crate; changing proto breaks every test; can't compile without the proto build step.
 
 **Option B — Rust-native types in port signatures (chosen)**
 Define plain Rust structs/enums for every request/response type. Adapters (T1-03+) own the translation to proto internally.
+
 - Pro: Consumers depend only on `engagement-hub-ports`; no proto build step in tests; types can evolve independently of proto churn.
 - Con: Translation layer in each adapter (one-time cost per adapter, not per consumer).
 
 **Option C — `dyn Any` / type-erased ports**
 Fully dynamic dispatch with no typed signatures.
+
 - Rejected immediately: no compile-time safety, hostile DX.
 
 ### Decision
