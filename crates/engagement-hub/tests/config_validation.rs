@@ -14,6 +14,8 @@ fn base() -> Config {
         db_idle_timeout_secs: 300,
         db_statement_timeout_ms: 5000,
         db_slow_query_ms: 500,
+        db_acquire_timeout_secs: 3,
+        db_max_lifetime_secs: 1800,
         log_format: LogFormat::Json,
     }
 }

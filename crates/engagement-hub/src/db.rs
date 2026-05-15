@@ -27,6 +27,8 @@ pub async fn build_pool(cfg: &Config) -> Result<PgPool> {
         .min_connections(cfg.db_pool_min)
         .max_connections(cfg.db_pool_max)
         .idle_timeout(Duration::from_secs(cfg.db_idle_timeout_secs))
+        .acquire_timeout(Duration::from_secs(cfg.db_acquire_timeout_secs))
+        .max_lifetime(Some(Duration::from_secs(cfg.db_max_lifetime_secs)))
         .after_connect(move |conn, _meta| {
             let sql = format!("SET statement_timeout = {statement_timeout_ms}");
             Box::pin(async move {

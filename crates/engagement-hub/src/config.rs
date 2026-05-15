@@ -80,6 +80,22 @@ pub struct Config {
     #[arg(long, env = "EH_DB_SLOW_QUERY_MS", default_value_t = 500)]
     pub db_slow_query_ms: u64,
 
+    #[arg(
+        long,
+        env = "EH_DB_ACQUIRE_TIMEOUT_SECS",
+        default_value_t = 3,
+        help = "Max seconds to wait for a connection from the pool before error"
+    )]
+    pub db_acquire_timeout_secs: u64,
+
+    #[arg(
+        long,
+        env = "EH_DB_MAX_LIFETIME_SECS",
+        default_value_t = 1800,
+        help = "Max lifetime (seconds) of a pooled connection before recycling (default 30 min)"
+    )]
+    pub db_max_lifetime_secs: u64,
+
     #[arg(long, env = "EH_LOG_FORMAT", value_enum, default_value_t = LogFormat::Json)]
     pub log_format: LogFormat,
 }

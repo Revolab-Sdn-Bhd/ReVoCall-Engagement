@@ -49,6 +49,8 @@ grpc_health_probe -addr=localhost:8444                             # SERVING
 | `EH_DB_IDLE_TIMEOUT_SECS` | no | `300` | sqlx idle timeout |
 | `EH_DB_STATEMENT_TIMEOUT_MS` | no | `5000` | per-session `SET statement_timeout` |
 | `EH_DB_SLOW_QUERY_MS` | no | `500` | slow-query log threshold |
+| `EH_DB_ACQUIRE_TIMEOUT_SECS` | no | `3` | Max seconds to wait for a pool connection |
+| `EH_DB_MAX_LIFETIME_SECS` | no | `1800` | Max lifetime (s) of a pooled connection (30 min) |
 | `EH_LOG_FORMAT` | no | `json` | `json` \| `pretty` |
 
 ## Prod-idle guard
