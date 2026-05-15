@@ -219,17 +219,17 @@ pub fn spans_to_traces_data(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Test helpers
+// Test helpers  (available to tests AND examples; not part of the public API)
 // ──────────────────────────────────────────────────────────────────────────────
 
-#[cfg(test)]
+#[doc(hidden)]
 pub enum StatusForTest {
     Ok,
     Error,
     Unset,
 }
 
-#[cfg(test)]
+#[doc(hidden)]
 pub fn fake_span_for_test(
     name: &'static str,
     duration_ms: u64,
