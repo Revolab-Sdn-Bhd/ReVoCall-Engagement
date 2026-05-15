@@ -2,13 +2,6 @@
 //!
 //! These are structural placeholders only. Real implementations land in T1-03+.
 
-// Imports are forward-declared for T1-03; suppress unused warnings on stubs.
-#[allow(unused_imports)]
-use engagement_hub_ports::{
-    types::*,
-    error::*,
-    ports::*,
-};
 #[allow(unused_imports)]
 use async_trait::async_trait;
 

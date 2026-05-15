@@ -263,7 +263,7 @@ mod tests {
     use uuid::Uuid;
 
     fn session_ref() -> VoiceSessionRef {
-        VoiceSessionRef { id: Uuid::new_v4() }
+        VoiceSessionRef::new(Uuid::new_v4())
     }
 
     fn telephony() -> Telephony {

@@ -4,8 +4,6 @@
 //! to proto types internally. Fields are intentionally minimal; they will be
 //! filled out in T1-03+.
 
-#![allow(dead_code)]
-
 use uuid::Uuid;
 
 // ---------------------------------------------------------------------------
@@ -15,6 +13,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct EngagementId(Uuid);
 
+#[allow(clippy::new_without_default)]
 impl EngagementId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -44,6 +43,7 @@ impl std::fmt::Display for EngagementId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct VoiceProfileId(Uuid);
 
+#[allow(clippy::new_without_default)]
 impl VoiceProfileId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -73,6 +73,7 @@ impl std::fmt::Display for VoiceProfileId {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct TelephonyId(Uuid);
 
+#[allow(clippy::new_without_default)]
 impl TelephonyId {
     pub fn new() -> Self {
         Self(Uuid::new_v4())
@@ -121,7 +122,13 @@ pub struct CreateExecutionReq {}
 
 #[derive(Debug, Clone)]
 pub struct ExecutionRef {
-    pub id: Uuid,
+    id: Uuid,
+}
+
+impl ExecutionRef {
+    pub fn new(id: Uuid) -> Self { Self { id } }
+    pub fn as_uuid(&self) -> &Uuid { &self.id }
+    pub fn into_uuid(self) -> Uuid { self.id }
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +136,7 @@ pub enum CancelReason {
     CompensateFailedBind,
     UserRequested,
     OrchestratorTimeout,
+    AdminCancelled,
 }
 
 #[derive(Debug, Clone)]
@@ -146,12 +154,20 @@ pub struct StartVoiceSessionReq {}
 
 #[derive(Debug, Clone)]
 pub struct VoiceSessionRef {
-    pub id: Uuid,
+    id: Uuid,
+}
+
+impl VoiceSessionRef {
+    pub fn new(id: Uuid) -> Self { Self { id } }
+    pub fn as_uuid(&self) -> &Uuid { &self.id }
+    pub fn into_uuid(self) -> Uuid { self.id }
 }
 
 #[derive(Debug, Clone)]
 pub enum StopMode {
+    /// Best-effort immediate teardown. Idempotent — safe to call even if session already gone.
     Abort,
+    /// Coordinated teardown allowing in-flight audio to drain. Not idempotent.
     Graceful,
 }
 

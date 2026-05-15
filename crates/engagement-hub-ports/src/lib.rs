@@ -1,6 +1,7 @@
 //! engagement-hub-ports — port trait signatures and domain types.
 
-pub mod types;
+#[allow(dead_code)]
+pub mod types; // fields populated in T1-03
 pub use types::*;
 
 pub mod error;

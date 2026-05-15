@@ -134,7 +134,7 @@ mod tests {
     use uuid::Uuid;
 
     fn exec_ref() -> ExecutionRef {
-        ExecutionRef { id: Uuid::new_v4() }
+        ExecutionRef::new(Uuid::new_v4())
     }
 
     #[tokio::test]
