@@ -21,6 +21,8 @@ jobs:
           --health-cmd "pg_isready -U postgres -d engagement_hub_db"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
+      # sqlx-cli reads DATABASE_URL; the binary + integration tests read EH_DATABASE_URL.
+      DATABASE_URL: postgres://postgres:eh_test@localhost:5432/engagement_hub_db
       EH_DATABASE_URL: postgres://postgres:eh_test@localhost:5432/engagement_hub_db
       SQLX_OFFLINE: "false"
     steps:
