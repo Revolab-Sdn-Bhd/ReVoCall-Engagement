@@ -9,5 +9,4 @@ Cargo.lock.bak
 *.swp
 /.traces/
 .sqlx/
-target/
 docker-compose.override.yml
