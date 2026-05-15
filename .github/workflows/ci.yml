@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: eh_test
+          POSTGRES_DB: engagement_hub_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d engagement_hub_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      EH_DATABASE_URL: postgres://postgres:eh_test@localhost:5432/engagement_hub_db
+      SQLX_OFFLINE: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install sqlx-cli
+        run: cargo install sqlx-cli --no-default-features --features postgres,rustls --version ^0.8 --locked
+      - name: Apply migrations
+        run: sqlx migrate run --source migrations
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace -- --test-threads=1
