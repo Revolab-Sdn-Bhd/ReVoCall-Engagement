@@ -89,6 +89,15 @@ Cargo feature `registry-stub = []` gates `RegistryStubAdapter`. `RegistryGrpcAda
 
 Panic linter: CI grep in `ci-code-quality.yml` scans `crates/engagement-hub-adapters/src/` for `.unwrap()`/`.expect()` outside of `policies.rs`, failing the build if any are found.
 
+### Error type additions (ports crate change in T1-03)
+
+T1-02 deferred `#[source]` error chaining and additional variants to T1-03. This story adds to **all 5 error enums** in `engagement-hub-ports/src/error.rs`:
+
+- `InternalPanic` variant — PRD §7 requires `catch_unwind → AdapterError::InternalPanic`; distinct from `Permanent` so callers can distinguish transport-permanent from adapter-panicked
+- `#[source]` chaining on `Transient` and `Permanent` — wraps the underlying transport error (`tonic::Status`, `reqwest::Error`, etc.)
+
+The ports crate is a separate crate from adapters; this is an intentional T1-03 touch on both crates.
+
 ### Deferred items
 
 - **Deadline propagation (Option B):** add `deadline: Option<Instant>` to request types when T1-06 wires the orchestrator
