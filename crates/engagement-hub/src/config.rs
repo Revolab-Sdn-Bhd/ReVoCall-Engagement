@@ -68,6 +68,7 @@ pub struct Config {
     pub log_format: String,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ConfigError {
     #[error("EH_REGISTRY_ADAPTER=stub is forbidden in production unless EH_TRACK_0_IDLE_MODE=true")]
