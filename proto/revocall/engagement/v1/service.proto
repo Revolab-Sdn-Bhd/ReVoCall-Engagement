@@ -1,0 +1,102 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+import "revocall/engagement/v1/control.proto";
+import "revocall/engagement/v1/proxied.proto";
+import "revocall/engagement/v1/query.proto";
+import "revocall/engagement/v1/watch.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// buf:lint:ignore SERVICE_SUFFIX
+service EngagementHub {
+  // ── Control ──────────────────────────────────────────────────────────────────
+  rpc StartEngagement(StartEngagementRequest)
+      returns (StartEngagementResponse);
+
+  rpc StopEngagement(StopEngagementRequest)
+      returns (StopEngagementResponse);
+
+  rpc CancelEngagement(CancelEngagementRequest)
+      returns (CancelEngagementResponse);
+
+  rpc IssueVoiceTestToken(IssueVoiceTestTokenRequest)
+      returns (IssueVoiceTestTokenResponse);
+
+  rpc ResolveEngagementRoute(ResolveEngagementRouteRequest)
+      returns (ResolveEngagementRouteResponse);
+
+  // ── Query ─────────────────────────────────────────────────────────────────────
+  rpc GetEngagement(GetEngagementRequest)
+      returns (GetEngagementResponse);
+
+  rpc ListEngagements(ListEngagementsRequest)
+      returns (ListEngagementsResponse);
+
+  rpc ListEngagementEvents(ListEngagementEventsRequest)
+      returns (ListEngagementEventsResponse);
+
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  rpc WatchEngagement(WatchEngagementRequest)
+      returns (stream EngagementEvent);
+
+  // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+  // buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+  rpc WatchEngagements(WatchEngagementsRequest)
+      returns (stream EngagementEvent);
+
+  // ── Journey timeline (proxied to Journey Manager) ─────────────────────────────
+  rpc GetEngagementJourneyTimeline(GetEngagementJourneyTimelineRequest)
+      returns (GetEngagementJourneyTimelineResponse);
+
+  // ── Output extraction (proxied to post-call) ──────────────────────────────────
+  rpc GetEngagementOutputExtraction(GetEngagementOutputExtractionRequest)
+      returns (GetEngagementOutputExtractionResponse);
+
+  // ── History (proxied to post-call) ────────────────────────────────────────────
+  rpc GetEngagementTranscript(GetEngagementTranscriptRequest)
+      returns (GetEngagementTranscriptResponse);
+
+  rpc GetEngagementSummary(GetEngagementSummaryRequest)
+      returns (GetEngagementSummaryResponse);
+
+  rpc GetEngagementSentiment(GetEngagementSentimentRequest)
+      returns (GetEngagementSentimentResponse);
+
+  rpc ListAgentCallLogs(ListAgentCallLogsRequest)
+      returns (ListAgentCallLogsResponse);
+
+  rpc ListOrganizationCallLogs(ListOrganizationCallLogsRequest)
+      returns (ListOrganizationCallLogsResponse);
+
+  // ── Telephony (proxied to Voice Manager) ──────────────────────────────────────
+  rpc CreateTelephony(CreateTelephonyRequest)
+      returns (CreateTelephonyResponse);
+
+  rpc ListTelephonies(ListTelephoniesRequest)
+      returns (ListTelephoniesResponse);
+
+  rpc GetTelephony(GetTelephonyRequest)
+      returns (GetTelephonyResponse);
+
+  rpc UpdateTelephony(UpdateTelephonyRequest)
+      returns (UpdateTelephonyResponse);
+
+  rpc DeleteTelephony(DeleteTelephonyRequest)
+      returns (DeleteTelephonyResponse);
+
+  // ── Analytics (proxied to ai-handler today) ───────────────────────────────────
+  rpc GetAgentAnalytics(GetAgentAnalyticsRequest)
+      returns (GetAgentAnalyticsResponse);
+
+  rpc GetAgentMetrics(GetAgentMetricsRequest)
+      returns (GetAgentMetricsResponse);
+
+  rpc GetOrganizationAnalytics(GetOrganizationAnalyticsRequest)
+      returns (GetOrganizationAnalyticsResponse);
+
+  rpc GetOrganizationMetrics(GetOrganizationMetricsRequest)
+      returns (GetOrganizationMetricsResponse);
+}
