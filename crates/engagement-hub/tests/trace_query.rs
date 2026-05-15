@@ -10,7 +10,10 @@ fn trace_query() -> Command {
 fn bin_path() -> PathBuf {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let p = PathBuf::from(&manifest).join("../../bin/trace-query");
-    assert!(p.exists(), "trace-query not found at {p:?}; run: ln -s ../revolab-observability/tools/trace-query bin/trace-query");
+    assert!(
+        p.exists(),
+        "trace-query not found at {p:?}; run: ln -s ../revolab-observability/tools/trace-query bin/trace-query"
+    );
     p
 }
 
@@ -28,7 +31,11 @@ fn engagement_returns_spans_for_id() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let spans = json.as_array().unwrap();
     assert_eq!(spans.len(), 2, "expected 2 spans for eng-001: {json}");
@@ -38,10 +45,11 @@ fn engagement_returns_spans_for_id() {
             "eng-001"
         );
     }
-    let ops: Vec<&str> = spans.iter()
+    let ops: Vec<&str> = spans
+        .iter()
         .map(|s| s["operation"].as_str().unwrap())
         .collect();
-    assert!(ops.contains(&"op-fast"),  "missing op-fast in {json}");
+    assert!(ops.contains(&"op-fast"), "missing op-fast in {json}");
     assert!(ops.contains(&"op-error"), "missing op-error in {json}");
 }
 
@@ -54,11 +62,18 @@ fn trace_returns_spans_for_trace_id() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     let spans = json.as_array().unwrap();
     assert_eq!(spans.len(), 1, "{json}");
-    assert_eq!(spans[0]["trace_id"].as_str().unwrap(), "03030303030303030303030303030303");
+    assert_eq!(
+        spans[0]["trace_id"].as_str().unwrap(),
+        "03030303030303030303030303030303"
+    );
 }
 
 #[test]

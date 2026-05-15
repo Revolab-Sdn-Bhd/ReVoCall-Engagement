@@ -1,23 +1,23 @@
-pub mod otlp_json;
 pub mod local_exporter;
+pub mod otlp_json;
 pub mod processor;
 
 use std::collections::HashMap;
 
 use opentelemetry::trace::TraceResult;
+use opentelemetry::trace::TracerProvider as TracerProviderTrait;
 use opentelemetry::{Context, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::export::trace::SpanData;
 use opentelemetry_sdk::trace::{Span, SpanProcessor, TracerProvider};
-use opentelemetry_sdk::Resource;
-use opentelemetry::trace::TracerProvider as TracerProviderTrait;
 use opentelemetry_semantic_conventions::attribute::{SERVICE_NAME, SERVICE_VERSION};
 // SERVICE_NAMESPACE and DEPLOYMENT_ENVIRONMENT are behind the `semconv_experimental` feature
 // in 0.27; use the string literals directly.
 const SERVICE_NAMESPACE: &str = "service.namespace";
 const DEPLOYMENT_ENVIRONMENT: &str = "deployment.environment";
-use tracing_subscriber::{prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, prelude::*};
 
 use crate::config::{Config, LogFormat};
 use crate::metrics::Metrics;
@@ -80,7 +80,9 @@ pub fn init_telemetry(config: &Config, metrics: &Metrics) {
                 processors.push(Box::new(processor::CountingSpanProcessor::new(
                     "grafana",
                     exporter,
-                    metrics.otel_exporter_dropped_spans.with_label_values(&["grafana"]),
+                    metrics
+                        .otel_exporter_dropped_spans
+                        .with_label_values(&["grafana"]),
                 )));
             }
             Err(e) => eprintln!("[otel] failed to build Grafana exporter: {e}"),
@@ -106,7 +108,9 @@ pub fn init_telemetry(config: &Config, metrics: &Metrics) {
                 processors.push(Box::new(processor::CountingSpanProcessor::new(
                     "langfuse",
                     exporter,
-                    metrics.otel_exporter_dropped_spans.with_label_values(&["langfuse"]),
+                    metrics
+                        .otel_exporter_dropped_spans
+                        .with_label_values(&["langfuse"]),
                 )));
             }
             Err(e) => eprintln!("[otel] failed to build Langfuse exporter: {e}"),
@@ -124,9 +128,13 @@ pub fn init_telemetry(config: &Config, metrics: &Metrics) {
             local_exporter::JsonlFileExporter::new_with_counter(
                 "engagement-hub",
                 build_resource_attrs(config),
-                metrics.otel_exporter_dropped_spans.with_label_values(&["local"]),
+                metrics
+                    .otel_exporter_dropped_spans
+                    .with_label_values(&["local"]),
             ),
-            metrics.otel_exporter_dropped_spans.with_label_values(&["local"]),
+            metrics
+                .otel_exporter_dropped_spans
+                .with_label_values(&["local"]),
         )));
     }
 
@@ -143,8 +151,12 @@ pub fn init_telemetry(config: &Config, metrics: &Metrics) {
         .with(otel_layer);
 
     match config.log_format {
-        LogFormat::Pretty => registry.with(tracing_subscriber::fmt::layer().pretty()).init(),
-        LogFormat::Json => registry.with(tracing_subscriber::fmt::layer().json()).init(),
+        LogFormat::Pretty => registry
+            .with(tracing_subscriber::fmt::layer().pretty())
+            .init(),
+        LogFormat::Json => registry
+            .with(tracing_subscriber::fmt::layer().json())
+            .init(),
     }
 }
 
@@ -155,24 +167,49 @@ pub fn shutdown_telemetry() {
 fn build_resource_attrs(config: &Config) -> Vec<otlp_json::KvAttribute> {
     use otlp_json::{KvAttribute, KvValue};
     vec![
-        KvAttribute { key: "service.name".into(), value: KvValue::StringValue("engagement-hub".into()) },
-        KvAttribute { key: "service.version".into(), value: KvValue::StringValue(env!("CARGO_PKG_VERSION").into()) },
-        KvAttribute { key: "deployment.environment".into(), value: KvValue::StringValue(config.env.as_metric_label().into()) },
+        KvAttribute {
+            key: "service.name".into(),
+            value: KvValue::StringValue("engagement-hub".into()),
+        },
+        KvAttribute {
+            key: "service.version".into(),
+            value: KvValue::StringValue(env!("CARGO_PKG_VERSION").into()),
+        },
+        KvAttribute {
+            key: "deployment.environment".into(),
+            value: KvValue::StringValue(config.env.as_metric_label().into()),
+        },
     ]
 }
 
 fn base64_encode(input: &str) -> String {
     const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let bytes = input.as_bytes();
-    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
         let b0 = chunk[0] as usize;
-        let b1 = if chunk.len() > 1 { chunk[1] as usize } else { 0 };
-        let b2 = if chunk.len() > 2 { chunk[2] as usize } else { 0 };
+        let b1 = if chunk.len() > 1 {
+            chunk[1] as usize
+        } else {
+            0
+        };
+        let b2 = if chunk.len() > 2 {
+            chunk[2] as usize
+        } else {
+            0
+        };
         out.push(TABLE[b0 >> 2] as char);
         out.push(TABLE[((b0 & 3) << 4) | (b1 >> 4)] as char);
-        out.push(if chunk.len() > 1 { TABLE[((b1 & 0xf) << 2) | (b2 >> 6)] as char } else { '=' });
-        out.push(if chunk.len() > 2 { TABLE[b2 & 0x3f] as char } else { '=' });
+        out.push(if chunk.len() > 1 {
+            TABLE[((b1 & 0xf) << 2) | (b2 >> 6)] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            TABLE[b2 & 0x3f] as char
+        } else {
+            '='
+        });
     }
     out
 }
@@ -182,7 +219,7 @@ mod tests {
     use super::*;
     use crate::config::{Env, RegistryAdapter};
     use crate::metrics::Metrics;
-    use crate::telemetry::otlp_json::{fake_span_for_test, StatusForTest};
+    use crate::telemetry::otlp_json::{StatusForTest, fake_span_for_test};
     use opentelemetry_sdk::trace::SpanProcessor as SpanProcessorTrait;
     use std::sync::{Arc, Mutex};
 
@@ -197,12 +234,24 @@ mod tests {
     }
 
     impl FakeExporter {
-        fn new() -> (Self, Arc<Mutex<Vec<opentelemetry_sdk::export::trace::SpanData>>>) {
+        fn new() -> (
+            Self,
+            Arc<Mutex<Vec<opentelemetry_sdk::export::trace::SpanData>>>,
+        ) {
             let store = Arc::new(Mutex::new(vec![]));
-            (Self { store: store.clone(), panic_on_export: false }, store)
+            (
+                Self {
+                    store: store.clone(),
+                    panic_on_export: false,
+                },
+                store,
+            )
         }
         fn panicking() -> Self {
-            Self { store: Arc::new(Mutex::new(vec![])), panic_on_export: true }
+            Self {
+                store: Arc::new(Mutex::new(vec![])),
+                panic_on_export: true,
+            }
         }
     }
 
@@ -210,8 +259,16 @@ mod tests {
         fn export(
             &mut self,
             batch: Vec<opentelemetry_sdk::export::trace::SpanData>,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = opentelemetry_sdk::export::trace::ExportResult> + Send + 'static>> {
-            if self.panic_on_export { panic!("intentional panic"); }
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = opentelemetry_sdk::export::trace::ExportResult>
+                    + Send
+                    + 'static,
+            >,
+        > {
+            if self.panic_on_export {
+                panic!("intentional panic");
+            }
             self.store.lock().unwrap().extend(batch);
             Box::pin(std::future::ready(Ok(())))
         }
@@ -227,22 +284,31 @@ mod tests {
                     if grafana {
                         let (e, _) = FakeExporter::new();
                         procs.push(Box::new(processor::CountingSpanProcessor::new(
-                            "grafana", e,
-                            metrics.otel_exporter_dropped_spans.with_label_values(&["grafana"]),
+                            "grafana",
+                            e,
+                            metrics
+                                .otel_exporter_dropped_spans
+                                .with_label_values(&["grafana"]),
                         )));
                     }
                     if langfuse {
                         let (e, _) = FakeExporter::new();
                         procs.push(Box::new(processor::CountingSpanProcessor::new(
-                            "langfuse", e,
-                            metrics.otel_exporter_dropped_spans.with_label_values(&["langfuse"]),
+                            "langfuse",
+                            e,
+                            metrics
+                                .otel_exporter_dropped_spans
+                                .with_label_values(&["langfuse"]),
                         )));
                     }
                     if local {
                         let (e, _) = FakeExporter::new();
                         procs.push(Box::new(processor::CountingSpanProcessor::new(
-                            "local", e,
-                            metrics.otel_exporter_dropped_spans.with_label_values(&["local"]),
+                            "local",
+                            e,
+                            metrics
+                                .otel_exporter_dropped_spans
+                                .with_label_values(&["local"]),
                         )));
                     }
                     let _provider = build_provider(Resource::empty(), procs);
@@ -258,12 +324,18 @@ mod tests {
         let bad_exp = FakeExporter::panicking();
 
         let good_proc = processor::CountingSpanProcessor::new(
-            "grafana", good_exp,
-            metrics.otel_exporter_dropped_spans.with_label_values(&["grafana"]),
+            "grafana",
+            good_exp,
+            metrics
+                .otel_exporter_dropped_spans
+                .with_label_values(&["grafana"]),
         );
         let bad_proc = processor::CountingSpanProcessor::new(
-            "langfuse", bad_exp,
-            metrics.otel_exporter_dropped_spans.with_label_values(&["langfuse"]),
+            "langfuse",
+            bad_exp,
+            metrics
+                .otel_exporter_dropped_spans
+                .with_label_values(&["langfuse"]),
         );
 
         let span = fake_span_for_test("op", 5, StatusForTest::Ok);
@@ -272,7 +344,9 @@ mod tests {
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         loop {
-            if !good_store.lock().unwrap().is_empty() { break; }
+            if !good_store.lock().unwrap().is_empty() {
+                break;
+            }
             if std::time::Instant::now() > deadline {
                 panic!("good exporter never received span");
             }

@@ -12,8 +12,8 @@
 use std::sync::Mutex;
 use std::time::Duration;
 
-use opentelemetry::trace::TraceResult;
 use opentelemetry::Context;
+use opentelemetry::trace::TraceResult;
 use opentelemetry_sdk::export::trace::{SpanData, SpanExporter};
 use opentelemetry_sdk::trace::Span;
 
@@ -54,8 +54,8 @@ impl CountingSpanProcessor {
     ) -> Self {
         let (tx, rx) = tokio::sync::mpsc::channel(capacity);
         let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel();
-        let handle = tokio::runtime::Handle::current()
-            .spawn(run_background(rx, shutdown_rx, exporter));
+        let handle =
+            tokio::runtime::Handle::current().spawn(run_background(rx, shutdown_rx, exporter));
         Self {
             tx,
             shutdown_tx: Mutex::new(Some(shutdown_tx)),
@@ -88,21 +88,21 @@ impl opentelemetry_sdk::trace::SpanProcessor for CountingSpanProcessor {
 
     fn shutdown(&self) -> TraceResult<()> {
         // Signal the background task to drain and stop.
-        if let Ok(mut guard) = self.shutdown_tx.lock() {
-            if let Some(tx) = guard.take() {
-                let _ = tx.send(());
-            }
+        if let Ok(mut guard) = self.shutdown_tx.lock()
+            && let Some(tx) = guard.take()
+        {
+            let _ = tx.send(());
         }
 
         // Block the calling thread until the background task finishes (or times out).
-        if let Ok(mut guard) = self.task_handle.lock() {
-            if let Some(handle) = guard.take() {
-                tokio::task::block_in_place(|| {
-                    tokio::runtime::Handle::current().block_on(async {
-                        let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, handle).await;
-                    });
+        if let Ok(mut guard) = self.task_handle.lock()
+            && let Some(handle) = guard.take()
+        {
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let _ = tokio::time::timeout(SHUTDOWN_TIMEOUT, handle).await;
                 });
-            }
+            });
         }
 
         Ok(())
@@ -164,14 +164,17 @@ async fn run_background<E: SpanExporter>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::telemetry::otlp_json::{fake_span_for_test, StatusForTest};
+    use crate::telemetry::otlp_json::{StatusForTest, fake_span_for_test};
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug)]
     struct RecordingExporter(Arc<Mutex<Vec<opentelemetry_sdk::export::trace::SpanData>>>);
 
     impl RecordingExporter {
-        fn new() -> (Self, Arc<Mutex<Vec<opentelemetry_sdk::export::trace::SpanData>>>) {
+        fn new() -> (
+            Self,
+            Arc<Mutex<Vec<opentelemetry_sdk::export::trace::SpanData>>>,
+        ) {
             let store = Arc::new(Mutex::new(vec![]));
             (Self(store.clone()), store)
         }
@@ -181,7 +184,13 @@ mod tests {
         fn export(
             &mut self,
             batch: Vec<opentelemetry_sdk::export::trace::SpanData>,
-        ) -> std::pin::Pin<Box<dyn std::future::Future<Output = opentelemetry_sdk::export::trace::ExportResult> + Send + 'static>> {
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = opentelemetry_sdk::export::trace::ExportResult>
+                    + Send
+                    + 'static,
+            >,
+        > {
             self.0.lock().unwrap().extend(batch);
             Box::pin(std::future::ready(Ok(())))
         }
@@ -198,7 +207,9 @@ mod tests {
 
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
         loop {
-            if !store.lock().unwrap().is_empty() { break; }
+            if !store.lock().unwrap().is_empty() {
+                break;
+            }
             if std::time::Instant::now() > deadline {
                 panic!("span never delivered to exporter");
             }
@@ -211,7 +222,8 @@ mod tests {
     async fn processor_increments_dropped_counter_when_queue_full() {
         let (exporter, _) = RecordingExporter::new();
         let counter = prometheus::IntCounter::new("test_drop_full", "t").unwrap();
-        let processor = CountingSpanProcessor::new_with_capacity("test", exporter, counter.clone(), 1);
+        let processor =
+            CountingSpanProcessor::new_with_capacity("test", exporter, counter.clone(), 1);
 
         for _ in 0..100 {
             opentelemetry_sdk::trace::SpanProcessor::on_end(
@@ -237,6 +249,9 @@ mod tests {
         // use SpanProcessor::shutdown
         opentelemetry_sdk::trace::SpanProcessor::shutdown(&processor).unwrap();
 
-        assert!(!store.lock().unwrap().is_empty(), "span not flushed on shutdown");
+        assert!(
+            !store.lock().unwrap().is_empty(),
+            "span not flushed on shutdown"
+        );
     }
 }

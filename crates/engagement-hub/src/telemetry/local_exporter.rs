@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use chrono::NaiveDate;
 use opentelemetry_sdk::export::trace::{ExportResult, SpanData, SpanExporter};
 
-use crate::telemetry::otlp_json::{spans_to_traces_data, KvAttribute};
+use crate::telemetry::otlp_json::{KvAttribute, spans_to_traces_data};
 
 const MAX_FILE_BYTES: u64 = 100 * 1024 * 1024;
 
@@ -197,10 +197,10 @@ impl JsonlFileExporter {
                 continue;
             }
             let date_str = &without_ext[without_ext.len() - 10..];
-            if let Ok(file_date) = date_str.parse::<NaiveDate>() {
-                if (today - file_date).num_days() > retention_days {
-                    let _ = std::fs::remove_file(entry.path());
-                }
+            if let Ok(file_date) = date_str.parse::<NaiveDate>()
+                && (today - file_date).num_days() > retention_days
+            {
+                let _ = std::fs::remove_file(entry.path());
             }
         }
     }
@@ -223,14 +223,11 @@ impl SpanExporter for JsonlFileExporter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::telemetry::otlp_json::{fake_span_for_test, StatusForTest};
+    use crate::telemetry::otlp_json::{StatusForTest, fake_span_for_test};
     use std::path::PathBuf;
 
     fn test_dir() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "eh-test-traces-{}",
-            uuid::Uuid::new_v4()
-        ));
+        let dir = std::env::temp_dir().join(format!("eh-test-traces-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         dir
     }
@@ -247,7 +244,10 @@ mod tests {
         let dir = test_dir();
         let mut exp = JsonlFileExporter::new_for_test("test-svc", dir.clone());
 
-        run_export(&mut exp, vec![fake_span_for_test("op", 10, StatusForTest::Ok)]);
+        run_export(
+            &mut exp,
+            vec![fake_span_for_test("op", 10, StatusForTest::Ok)],
+        );
 
         let files: Vec<_> = std::fs::read_dir(&dir).unwrap().collect();
         assert_eq!(files.len(), 1, "expected one file");
@@ -265,9 +265,11 @@ mod tests {
         let date_a = chrono::NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
         let date_b = chrono::NaiveDate::from_ymd_opt(2024, 1, 2).unwrap();
 
-        let mut exp =
-            JsonlFileExporter::new_for_test_with_date("test-svc", dir.clone(), date_a);
-        run_export(&mut exp, vec![fake_span_for_test("op", 5, StatusForTest::Ok)]);
+        let mut exp = JsonlFileExporter::new_for_test_with_date("test-svc", dir.clone(), date_a);
+        run_export(
+            &mut exp,
+            vec![fake_span_for_test("op", 5, StatusForTest::Ok)],
+        );
 
         exp.advance_date_for_test(date_b);
         run_export(
@@ -297,7 +299,10 @@ mod tests {
         );
 
         // First export — file starts empty, should succeed
-        run_export(&mut exp, vec![fake_span_for_test("op", 5, StatusForTest::Ok)]);
+        run_export(
+            &mut exp,
+            vec![fake_span_for_test("op", 5, StatusForTest::Ok)],
+        );
         // Second export — file exceeds cap, should be dropped
         run_export(
             &mut exp,
