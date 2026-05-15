@@ -28,6 +28,8 @@ message WatchEngagementsRequest {
 }
 
 // ── EngagementEvent (server-streamed response) ────────────────────────────────
+// Note: ENGAGEMENT_EVENT_TYPE_STREAM_OVERFLOW is delivered as a bare EngagementEvent
+// with no oneof payload variant — it signals buffer overflow and the stream closes.
 
 message EngagementEvent {
   string event_id                       = 1;
