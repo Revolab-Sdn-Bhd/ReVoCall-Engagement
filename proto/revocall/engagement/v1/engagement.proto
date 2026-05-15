@@ -55,6 +55,8 @@ message PrincipalRef {
   }
 }
 
+// VoiceConfig is used in control.proto request messages (Start, Resolve).
+// It is intentionally absent from the Engagement entity (per PRD §5).
 message VoiceConfig {
   optional string voice_profile_ref              = 1;
   optional string telephony_id                   = 2;
