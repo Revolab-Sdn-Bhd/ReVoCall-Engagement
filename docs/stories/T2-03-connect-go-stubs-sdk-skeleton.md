@@ -9,6 +9,7 @@
 No Go consumer (admin-backend, outbound dispatcher, ai-handler) can compile against Engagement Hub without generated Connect-Go stubs. T2-03 produces those stubs and stands up the Go module that all SDK hand-written code (T2-04 onward) builds on top of.
 
 Two proto packages need to be wired:
+
 - `revocall.engagement.v1` — external service surface (T2-01)
 - `revocall.engagement.internal.v1` — lifecycle notification surface (T2-02)
 
@@ -26,11 +27,13 @@ Use local `protoc-gen-go` and `protoc-gen-connect-go` instead of remote BSR plug
 ### Decision
 
 Option A. `buf.gen.yaml` at repo root uses managed mode with:
+
 - `go_package_prefix: github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/clients/go/engagementhub/internal/gen`
 - `buf.build/protocolbuffers/go` (pinned) → `clients/go/engagementhub/internal/gen`, `paths=source_relative`
 - `buf.build/connectrpc/go` (pinned) → `clients/go/engagementhub/internal/gen`, `paths=source_relative`
 
 SDK module at `clients/go/engagementhub/go.mod`:
+
 - Module path: `github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/clients/go/engagementhub`
 - Minimal direct deps: `connectrpc.com/connect`, `google.golang.org/protobuf`
 - `go mod tidy` resolves transitive deps

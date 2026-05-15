@@ -35,6 +35,7 @@ All commands run from the worktree root unless stated otherwise.
 ## Task 1: Create buf.gen.yaml and verify buf lint
 
 **Files:**
+
 - Create: `buf.gen.yaml`
 
 - [ ] **Step 1: Create buf.gen.yaml at repo root**
@@ -79,6 +80,7 @@ git commit -m "build: add buf.gen.yaml — Connect-Go managed-mode config (#22)"
 ## Task 2: Run buf generate and commit generated stubs
 
 **Files:**
+
 - Generated: `clients/go/engagementhub/internal/gen/` (entire subtree)
 
 - [ ] **Step 1: Run buf generate**
@@ -104,6 +106,7 @@ find clients/go/engagementhub/internal/gen -type f | sort
 ```
 
 Expected (10 files):
+
 ```
 clients/go/engagementhub/internal/gen/revocall/engagement/internal/v1/service.pb.go
 clients/go/engagementhub/internal/gen/revocall/engagement/internal/v1/service_connect.go
@@ -139,6 +142,7 @@ git commit -m "build: generate Connect-Go stubs into clients/go/engagementhub/in
 ## Task 3: Create go.mod, run go mod tidy, verify build
 
 **Files:**
+
 - Delete: `clients/go/engagementhub/.gitkeep`
 - Create: `clients/go/engagementhub/go.mod`
 - Generated: `clients/go/engagementhub/go.sum`
@@ -157,8 +161,8 @@ module github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/clients/go/engagementhub
 go 1.26
 
 require (
-	connectrpc.com/connect v1.19.2
-	google.golang.org/protobuf v1.36.11
+    connectrpc.com/connect v1.19.2
+    google.golang.org/protobuf v1.36.11
 )
 ```
 
@@ -193,6 +197,7 @@ git commit -m "feat: stand up clients/go/engagementhub Go module skeleton (#22)"
 ## Task 4: Add buf-gen recipe to justfile
 
 **Files:**
+
 - Modify: `justfile`
 
 - [ ] **Step 1: Add the recipe**
@@ -226,6 +231,7 @@ git commit -m "build: add buf-gen recipe to justfile (#22)"
 ## Task 5: Correct story doc path references and finalise in-repo story doc
 
 **Files:**
+
 - Modify: `docs/stories/T2-03-connect-go-stubs-sdk-skeleton.md` (in-repo)
 - Modify: `/Users/chunzhe/Projects/docs/2026-05-14-engagement-hub-stories/T2-03-connect-go-stubs-sdk-skeleton.md`
 - Modify: `/Users/chunzhe/Projects/docs/2026-05-14-engagement-hub-stories/T2-12-e2e-integration-v1-release.md`
@@ -265,27 +271,35 @@ In `docs/stories/T2-03-connect-go-stubs-sdk-skeleton.md`, replace `## Implementa
 In `/Users/chunzhe/Projects/docs/2026-05-14-engagement-hub-stories/T2-03-connect-go-stubs-sdk-skeleton.md`:
 
 Replace:
+
 ```
 - Stubs output to `pkg/engagementhub/internal/gen/`
 ```
+
 With:
+
 ```
 - Stubs output to `clients/go/engagementhub/internal/gen/`
 ```
 
 Replace:
+
 ```
 - `pkg/engagementhub/go.mod` with minimal dependency set (protobuf, Connect-Go, Google WKT)
 ```
+
 With:
+
 ```
 - `clients/go/engagementhub/go.mod` with minimal dependency set (protobuf, Connect-Go); WKT provided by `google.golang.org/protobuf`, no separate genproto needed
 ```
 
 Also update the context line:
+
 ```
 Wires up `buf generate` to produce Connect-Go stubs from the external + internal proto packages, and stands up the `pkg/engagementhub` Go module
 ```
+
 Replace `pkg/engagementhub` with `clients/go/engagementhub`.
 
 - [ ] **Step 3: Correct external T2-12 story doc**
@@ -293,10 +307,13 @@ Replace `pkg/engagementhub` with `clients/go/engagementhub`.
 In `/Users/chunzhe/Projects/docs/2026-05-14-engagement-hub-stories/T2-12-e2e-integration-v1-release.md`:
 
 Replace:
+
 ```
 - **Versioning**: `pkg/engagementhub/VERSIONING.md` documenting semver policy, module-path-v2 strategy for future breaking changes
 ```
+
 With:
+
 ```
 - **Versioning**: `clients/go/engagementhub/VERSIONING.md` documenting semver policy, module-path-v2 strategy for future breaking changes
 ```
