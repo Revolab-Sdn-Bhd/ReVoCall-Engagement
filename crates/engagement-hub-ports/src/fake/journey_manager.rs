@@ -150,12 +150,20 @@ mod tests {
         ExecutionRef::new(Uuid::new_v4())
     }
 
+    fn create_req() -> CreateExecutionReq {
+        CreateExecutionReq {
+            journey_version: "v1".into(),
+            org_id: "org-1".into(),
+            engagement_id: crate::types::EngagementId::new(),
+        }
+    }
+
     #[tokio::test]
     async fn create_execution_success() {
         let fake = FakeJourneyManagerPort::new();
         let id = Uuid::new_v4();
         fake.push_create_execution(Outcome::Success(ExecutionRef::new(id)));
-        let result = fake.create_execution(CreateExecutionReq {}).await.unwrap();
+        let result = fake.create_execution(create_req()).await.unwrap();
         assert_eq!(result.as_uuid(), &id);
     }
 
@@ -163,7 +171,7 @@ mod tests {
     async fn create_execution_transient() {
         let fake = FakeJourneyManagerPort::new();
         fake.push_create_execution(Outcome::Transient("timeout".into()));
-        let result = fake.create_execution(CreateExecutionReq {}).await;
+        let result = fake.create_execution(create_req()).await;
         assert!(matches!(result, Err(JmError::Transient(_))));
     }
 
@@ -171,7 +179,7 @@ mod tests {
     async fn create_execution_permanent() {
         let fake = FakeJourneyManagerPort::new();
         fake.push_create_execution(Outcome::Permanent("invalid".into()));
-        let result = fake.create_execution(CreateExecutionReq {}).await;
+        let result = fake.create_execution(create_req()).await;
         assert!(matches!(result, Err(JmError::Permanent(_))));
     }
 
@@ -179,7 +187,7 @@ mod tests {
     async fn create_execution_unavailable() {
         let fake = FakeJourneyManagerPort::new();
         fake.push_create_execution(Outcome::Unavailable);
-        let result = fake.create_execution(CreateExecutionReq {}).await;
+        let result = fake.create_execution(create_req()).await;
         assert!(matches!(result, Err(JmError::Unavailable)));
     }
 
@@ -188,8 +196,7 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_create_execution(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.create_execution(CreateExecutionReq {}).await })
-                .await;
+            tokio::task::spawn(async move { fake.create_execution(create_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -239,12 +246,18 @@ mod tests {
         assert!(result.unwrap_err().is_panic());
     }
 
+    fn timeline_opts() -> TimelineOpts {
+        TimelineOpts {
+            after_sequence: None,
+        }
+    }
+
     #[tokio::test]
     async fn get_execution_timeline_success() {
         let fake = FakeJourneyManagerPort::new();
-        fake.push_get_execution_timeline(Outcome::Success(Timeline {}));
+        fake.push_get_execution_timeline(Outcome::Success(Timeline { events: vec![] }));
         let ref_ = exec_ref();
-        let result = fake.get_execution_timeline(&ref_, TimelineOpts {}).await;
+        let result = fake.get_execution_timeline(&ref_, timeline_opts()).await;
         assert!(result.is_ok());
     }
 
@@ -253,7 +266,7 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_get_execution_timeline(Outcome::Transient("timeout".into()));
         let ref_ = exec_ref();
-        let result = fake.get_execution_timeline(&ref_, TimelineOpts {}).await;
+        let result = fake.get_execution_timeline(&ref_, timeline_opts()).await;
         assert!(matches!(result, Err(JmError::Transient(_))));
     }
 
@@ -262,7 +275,7 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_get_execution_timeline(Outcome::Permanent("not found".into()));
         let ref_ = exec_ref();
-        let result = fake.get_execution_timeline(&ref_, TimelineOpts {}).await;
+        let result = fake.get_execution_timeline(&ref_, timeline_opts()).await;
         assert!(matches!(result, Err(JmError::Permanent(_))));
     }
 
@@ -273,7 +286,7 @@ mod tests {
         let ref_ = exec_ref();
         let result =
             tokio::task::spawn(
-                async move { fake.get_execution_timeline(&ref_, TimelineOpts {}).await },
+                async move { fake.get_execution_timeline(&ref_, timeline_opts()).await },
             )
             .await;
         assert!(result.unwrap_err().is_panic());
@@ -287,11 +300,11 @@ mod tests {
         fake.push_create_execution(Outcome::Success(exec_ref()));
 
         // First call should be transient
-        let first = fake.create_execution(CreateExecutionReq {}).await;
+        let first = fake.create_execution(create_req()).await;
         assert!(matches!(first, Err(JmError::Transient(ref msg)) if msg == "first"));
 
         // Second call should be success
-        let second = fake.create_execution(CreateExecutionReq {}).await;
+        let second = fake.create_execution(create_req()).await;
         assert!(second.is_ok());
     }
 
@@ -300,8 +313,7 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         // Don't push anything
         let result =
-            tokio::task::spawn(async move { fake.create_execution(CreateExecutionReq {}).await })
-                .await;
+            tokio::task::spawn(async move { fake.create_execution(create_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 }

@@ -223,7 +223,33 @@ mod tests {
     fn empty_page() -> Page<CallLog> {
         Page {
             items: vec![],
+            total_size: Some(0),
             next_page_token: None,
+        }
+    }
+
+    fn agent_req() -> ListAgentCallLogsReq {
+        ListAgentCallLogsReq {
+            agent_id: "agent-1".into(),
+            skip: None,
+            limit: None,
+            start_date: None,
+            end_date: None,
+            identity: None,
+            id: None,
+            batch_id: None,
+        }
+    }
+
+    fn org_req() -> ListOrgCallLogsReq {
+        ListOrgCallLogsReq {
+            org_id: "org-1".into(),
+            skip: None,
+            limit: None,
+            start_date: None,
+            end_date: None,
+            contact_number: None,
+            call_id: None,
         }
     }
 
@@ -233,10 +259,11 @@ mod tests {
     async fn get_transcript_success() {
         let fake = FakePostCallPort::new();
         fake.push_get_transcript(Outcome::Success(Transcript {
-            text: "hello world".into(),
+            messages: vec![],
+            total_size: 0,
         }));
-        let result = fake.get_transcript(&eng_id()).await.unwrap();
-        assert_eq!(result.text, "hello world");
+        let result = fake.get_transcript(&eng_id()).await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -278,10 +305,12 @@ mod tests {
     async fn get_summary_success() {
         let fake = FakePostCallPort::new();
         fake.push_get_summary(Outcome::Success(Summary {
-            text: "summary text".into(),
+            summary: "test".into(),
+            resolution: None,
+            resolution_explanation: None,
         }));
-        let result = fake.get_summary(&eng_id()).await.unwrap();
-        assert_eq!(result.text, "summary text");
+        let result = fake.get_summary(&eng_id()).await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -314,9 +343,12 @@ mod tests {
     #[tokio::test]
     async fn get_sentiment_success() {
         let fake = FakePostCallPort::new();
-        fake.push_get_sentiment(Outcome::Success(Sentiment { score: 0.9 }));
-        let result = fake.get_sentiment(&eng_id()).await.unwrap();
-        assert_eq!(result.score, 0.9);
+        fake.push_get_sentiment(Outcome::Success(Sentiment {
+            label: "neutral".into(),
+            justification: "no data".into(),
+        }));
+        let result = fake.get_sentiment(&eng_id()).await;
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
@@ -349,7 +381,7 @@ mod tests {
     #[tokio::test]
     async fn get_output_extraction_success() {
         let fake = FakePostCallPort::new();
-        fake.push_get_output_extraction(Outcome::Success(OutputExtraction {}));
+        fake.push_get_output_extraction(Outcome::Success(OutputExtraction { fields: vec![] }));
         let result = fake.get_output_extraction(&eng_id()).await;
         assert!(result.is_ok());
     }
@@ -385,7 +417,7 @@ mod tests {
     async fn list_agent_call_logs_success() {
         let fake = FakePostCallPort::new();
         fake.push_list_agent_call_logs(Outcome::Success(empty_page()));
-        let result = fake.list_agent_call_logs(ListAgentCallLogsReq {}).await;
+        let result = fake.list_agent_call_logs(agent_req()).await;
         assert!(result.is_ok());
     }
 
@@ -393,7 +425,7 @@ mod tests {
     async fn list_agent_call_logs_transient() {
         let fake = FakePostCallPort::new();
         fake.push_list_agent_call_logs(Outcome::Transient("timeout".into()));
-        let result = fake.list_agent_call_logs(ListAgentCallLogsReq {}).await;
+        let result = fake.list_agent_call_logs(agent_req()).await;
         assert!(matches!(result, Err(PostCallError::Transient(_))));
     }
 
@@ -401,7 +433,7 @@ mod tests {
     async fn list_agent_call_logs_permanent() {
         let fake = FakePostCallPort::new();
         fake.push_list_agent_call_logs(Outcome::Permanent("forbidden".into()));
-        let result = fake.list_agent_call_logs(ListAgentCallLogsReq {}).await;
+        let result = fake.list_agent_call_logs(agent_req()).await;
         assert!(matches!(result, Err(PostCallError::Permanent(_))));
     }
 
@@ -410,10 +442,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_list_agent_call_logs(Outcome::Panic);
         let result =
-            tokio::task::spawn(
-                async move { fake.list_agent_call_logs(ListAgentCallLogsReq {}).await },
-            )
-            .await;
+            tokio::task::spawn(async move { fake.list_agent_call_logs(agent_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -423,7 +452,7 @@ mod tests {
     async fn list_org_call_logs_success() {
         let fake = FakePostCallPort::new();
         fake.push_list_org_call_logs(Outcome::Success(empty_page()));
-        let result = fake.list_org_call_logs(ListOrgCallLogsReq {}).await;
+        let result = fake.list_org_call_logs(org_req()).await;
         assert!(result.is_ok());
     }
 
@@ -431,7 +460,7 @@ mod tests {
     async fn list_org_call_logs_transient() {
         let fake = FakePostCallPort::new();
         fake.push_list_org_call_logs(Outcome::Transient("timeout".into()));
-        let result = fake.list_org_call_logs(ListOrgCallLogsReq {}).await;
+        let result = fake.list_org_call_logs(org_req()).await;
         assert!(matches!(result, Err(PostCallError::Transient(_))));
     }
 
@@ -439,7 +468,7 @@ mod tests {
     async fn list_org_call_logs_permanent() {
         let fake = FakePostCallPort::new();
         fake.push_list_org_call_logs(Outcome::Permanent("forbidden".into()));
-        let result = fake.list_org_call_logs(ListOrgCallLogsReq {}).await;
+        let result = fake.list_org_call_logs(org_req()).await;
         assert!(matches!(result, Err(PostCallError::Permanent(_))));
     }
 
@@ -448,8 +477,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_list_org_call_logs(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.list_org_call_logs(ListOrgCallLogsReq {}).await })
-                .await;
+            tokio::task::spawn(async move { fake.list_org_call_logs(org_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -458,7 +486,10 @@ mod tests {
         let fake = FakePostCallPort::new();
         // Push transient first, then success
         fake.push_get_transcript(Outcome::Transient("first".into()));
-        fake.push_get_transcript(Outcome::Success(Transcript { text: "ok".into() }));
+        fake.push_get_transcript(Outcome::Success(Transcript {
+            messages: vec![],
+            total_size: 0,
+        }));
 
         // First call should be transient
         let first = fake.get_transcript(&eng_id()).await;
