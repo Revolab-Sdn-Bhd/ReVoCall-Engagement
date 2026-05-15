@@ -1,0 +1,15 @@
+# buf.gen.yaml
+# Regenerate stubs: just buf-gen
+version: v2
+managed:
+  enabled: true
+  override:
+    - file_option: go_package_prefix
+      value: github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/clients/go/engagementhub/internal/gen
+plugins:
+  - remote: buf.build/protocolbuffers/go:v1.36.11
+    out: clients/go/engagementhub/internal/gen
+    opt: paths=source_relative
+  - remote: buf.build/connectrpc/go:v1.19.2
+    out: clients/go/engagementhub/internal/gen
+    opt: paths=source_relative
