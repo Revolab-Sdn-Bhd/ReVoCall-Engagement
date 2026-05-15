@@ -1,3 +1,0 @@
-syntax = "proto3";
-
-package revocall.engagement.v1;
