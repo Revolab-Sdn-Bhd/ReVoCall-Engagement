@@ -4,6 +4,7 @@ package revocall.engagement.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "revocall/engagement/v1/errors.proto";
 
 option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
 
@@ -65,15 +66,6 @@ message VoiceConfig {
   reserved 100 to 199;
 }
 
-// ── Error type ────────────────────────────────────────────────────────────────
-
-message EngagementError {
-  EngagementErrorCode code               = 1;
-  string message                         = 2;
-  optional string downstream_service     = 3;
-  map<string, string> details            = 4;
-}
-
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
 enum Channel {
@@ -117,24 +109,5 @@ enum EngagementEventType {
   ENGAGEMENT_EVENT_TYPE_CANCELLED            = 11;
   ENGAGEMENT_EVENT_TYPE_HEARTBEAT            = 12;
   ENGAGEMENT_EVENT_TYPE_STREAM_OVERFLOW      = 13;
-  reserved 1000 to 1999;
-}
-
-enum EngagementErrorCode {
-  ENGAGEMENT_ERROR_CODE_UNSPECIFIED                 = 0;
-  ENGAGEMENT_ERROR_CODE_ROUTE_RESOLUTION_FAILED     = 1;
-  ENGAGEMENT_ERROR_CODE_JOURNEY_VERSION_NOT_FOUND   = 2;
-  ENGAGEMENT_ERROR_CODE_TELEPHONY_NOT_AVAILABLE     = 3;
-  ENGAGEMENT_ERROR_CODE_VOICE_PROFILE_NOT_FOUND     = 4;
-  ENGAGEMENT_ERROR_CODE_VOICE_SESSION_REJECTED      = 10;
-  ENGAGEMENT_ERROR_CODE_JOURNEY_EXECUTION_REJECTED  = 11;
-  ENGAGEMENT_ERROR_CODE_REGISTRY_UNAVAILABLE        = 12;
-  ENGAGEMENT_ERROR_CODE_CONTACT_UNREACHABLE         = 20;
-  ENGAGEMENT_ERROR_CODE_CALL_ENDED_WITH_ERROR       = 21;
-  ENGAGEMENT_ERROR_CODE_ORG_QUOTA_EXCEEDED          = 30;
-  ENGAGEMENT_ERROR_CODE_ENGAGEMENT_NOT_FOUND        = 31;
-  ENGAGEMENT_ERROR_CODE_ENGAGEMENT_ALREADY_TERMINAL = 32;
-  ENGAGEMENT_ERROR_CODE_REQUEST_ID_CONFLICT         = 33;
-  ENGAGEMENT_ERROR_CODE_INTERNAL                    = 99;
   reserved 1000 to 1999;
 }
