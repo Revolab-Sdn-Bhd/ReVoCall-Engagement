@@ -226,6 +226,7 @@ pub fn spans_to_traces_data(
 // ──────────────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
+#[allow(dead_code)]
 pub(crate) enum StatusForTest {
     Ok,
     Error,
