@@ -4,6 +4,7 @@ package revocall.engagement.v1;
 
 import "google/protobuf/timestamp.proto";
 import "revocall/engagement/v1/engagement.proto";
+import "revocall/engagement/v1/errors.proto";
 
 option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
 

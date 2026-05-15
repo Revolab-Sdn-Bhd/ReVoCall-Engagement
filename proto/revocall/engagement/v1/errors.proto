@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// EngagementError is serialized into google.rpc.Status.details per the
+// Connect-Go / tonic convention. The gRPC status code is selected by the
+// server based on the EngagementErrorCode value; see PRD §5 for the
+// canonical mapping table.
+
+message EngagementError {
+  EngagementErrorCode code               = 1;
+  string message                         = 2;
+  optional string downstream_service     = 3;
+  map<string, string> details            = 4;
+}
+
+enum EngagementErrorCode {
+  ENGAGEMENT_ERROR_CODE_UNSPECIFIED                 = 0;
+  ENGAGEMENT_ERROR_CODE_ROUTE_RESOLUTION_FAILED     = 1;  // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_JOURNEY_VERSION_NOT_FOUND   = 2;  // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_TELEPHONY_NOT_AVAILABLE     = 3;  // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_VOICE_PROFILE_NOT_FOUND     = 4;  // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_VOICE_SESSION_REJECTED      = 10; // gRPC: ABORTED
+  ENGAGEMENT_ERROR_CODE_JOURNEY_EXECUTION_REJECTED  = 11; // gRPC: ABORTED
+  ENGAGEMENT_ERROR_CODE_REGISTRY_UNAVAILABLE        = 12; // gRPC: UNAVAILABLE
+  ENGAGEMENT_ERROR_CODE_CONTACT_UNREACHABLE         = 20; // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_CALL_ENDED_WITH_ERROR       = 21; // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_ORG_QUOTA_EXCEEDED          = 30; // gRPC: RESOURCE_EXHAUSTED
+  ENGAGEMENT_ERROR_CODE_ENGAGEMENT_NOT_FOUND        = 31; // gRPC: NOT_FOUND
+  ENGAGEMENT_ERROR_CODE_ENGAGEMENT_ALREADY_TERMINAL = 32; // gRPC: FAILED_PRECONDITION
+  ENGAGEMENT_ERROR_CODE_REQUEST_ID_CONFLICT         = 33; // gRPC: ALREADY_EXISTS
+  ENGAGEMENT_ERROR_CODE_INTERNAL                    = 99; // gRPC: INTERNAL
+  reserved 1000 to 1999;
+}
