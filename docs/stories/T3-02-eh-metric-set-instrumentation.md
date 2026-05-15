@@ -73,6 +73,13 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 
 > **For agentic workers:** use `superpowers:subagent-driven-development` + `superpowers:test-driven-development` to implement task-by-task.
 
+- [x] Task 1: Write 5 failing tests — `0a3dc57`
+- [x] Task 2: Add 13 counter fields (including existing) — `76a9d5e`
+- [x] Task 3: Add 9 histogram fields with bucket boundaries and stage pre-init — `de367f1`
+- [x] Task 4: Add 6 gauge fields + reconciler_backlog pre-init — `e856831`
+- [x] Task 5: Full test run, smoke build, comment fixes, story doc update — `pending`
+- [ ] Task 6: Kustomize PR — pending
+
 ---
 
 #### Task 1 — Write all 5 failing tests (TDD red phase)

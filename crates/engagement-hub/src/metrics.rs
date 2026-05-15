@@ -7,7 +7,7 @@ pub struct Metrics {
     pub registry: Registry,
     pub registry_adapter_kind: IntGaugeVec,
     pub otel_exporter_dropped_spans: IntCounterVec,
-    // --- Counters (new) ---
+    // --- Counters ---
     pub rpc_total: IntCounterVec,
     pub engagements_started_total: IntCounterVec,
     pub engagements_terminal_total: IntCounterVec,
@@ -382,8 +382,9 @@ mod tests {
     fn all_counters_registered() {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
         // Touch each labeled counter so its family appears in gather_text output.
-        // prometheus 0.13 omits empty Vec families; this test-only Metrics instance
-        // never reaches a real registry, so these sentinel values have no side effects.
+        // prometheus 0.13 omits empty Vec families; each test creates its own isolated
+        // `Metrics` instance with its own `Registry`, so sentinel values never appear
+        // in production.
         m.rpc_total.with_label_values(&["_", "_", "_"]);
         m.engagements_started_total.with_label_values(&["_", "_"]);
         m.engagements_terminal_total.with_label_values(&["_"]);
@@ -407,7 +408,10 @@ mod tests {
             "engagementhub_otel_exporter_dropped_spans_total",
             "engagementhub_db_failover_detected_total",
         ] {
-            assert!(text.contains(name), "counter missing: {name}\n\nfull output:\n{text}");
+            assert!(
+                text.contains(&format!("# HELP {name} ")),
+                "counter missing: {name}\n\nfull output:\n{text}"
+            );
         }
     }
 
@@ -458,7 +462,10 @@ mod tests {
             "engagementhub_reconciler_backlog",
             "engagementhub_registry_adapter_kind",
         ] {
-            assert!(text.contains(name), "gauge missing: {name}\n\nfull output:\n{text}");
+            assert!(
+                text.contains(&format!("# HELP {name} ")),
+                "gauge missing: {name}\n\nfull output:\n{text}"
+            );
         }
     }
 
