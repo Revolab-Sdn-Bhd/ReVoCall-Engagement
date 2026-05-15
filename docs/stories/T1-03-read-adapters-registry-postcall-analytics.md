@@ -1,4 +1,4 @@
-# T1-03: Read adapters — Registry + PostCall + Analytics
+# T1-03: Read adapters — Registry + PostCall + Analytics (with cross-cutting policies)
 
 **Issue:** #10 | **Branch:** feat/10-read-adapters | **Date:** 2026-05-15
 
@@ -6,31 +6,96 @@
 
 ### Problem
 
-T1-02 shipped port traits and fakes. T1-03 ships the concrete read-side adapter implementations — the three ports (Registry, PostCall, Analytics) that the orchestrator and admin-BFF will actually call at runtime. Because the Registry Service is a sibling PRD that may not be ready when EH goes to prod, we also need a fixture-backed `RegistryStubAdapter` that satisfies the Track 0 idle-mode deployment.
+T1-02 locked port trait signatures and fake adapters. T1-03 ships the three concrete read-side adapters (`RegistryStubAdapter`, `RegistryGrpcAdapter`, `PostCallHttpAdapter`, `AnalyticsHttpAdapter`) and the cross-cutting reliability policies (retry, timeout, panic safety, typed error mapping) that every adapter must obey. Three design questions needed resolution before implementation.
 
-Cross-cutting reliability policies (retry, deadline propagation, panic safety, typed error mapping) are baked into adapter stories (PRD §12) rather than a standalone ticket, so T1-03 is also where those policies ship and get tested.
+### Q1 — Registry proto source
 
-### Options considered
+Registry Service is a sibling PRD that may slip. `RegistryGrpcAdapter` needs a compiled `registry_v1::RegistryClient<Channel>`.
 
-**Cross-cutting policy placement:**
-Three options evaluated — inline per-method, shared `policy` module, or decorator wrapper types. Inline duplicates ~600 lines of policy across 3 adapters (and again in T1-04). Decorators add type complexity for minimal gain. **Shared `policy` module** (retry_call, DeadlineContext, run_safe) chosen: ~80 lines of shared code, adapters stay thin, T1-04 gets it for free.
+**Option A — Workspace-level `proto/` placeholder (chosen):** `proto/registry/v1/registry.proto` owned by EH, committed to the repo, header documents it as a placeholder. `build.rs` in the adapters crate compiles it via `tonic-build`. Migration path when a shared proto repo arrives: replace the directory with a gitsubmodule / `buf` fetch; `build.rs` path unchanged; adapter message-mapping may need minor updates. Policy logic (retry/deadline/panic) is not affected by the proto swap.
 
-**Registry proto sourcing:**
-The PRD calls for `registry_v1::RegistryClient<Channel>` but no Registry proto exists yet. Options: copy from sibling repo, use buf.build, define forward contract here, or skip gRPC adapter. **Define forward contract** in `proto/revocall/registry/v1/service.proto`: two RPCs matching the port trait. Reconciled with Registry service's own proto when it ships.
+**Option B — Pull from RevCAF:** Registry has not yet published a canonical proto; not available.
 
-**Deadline propagation in port traits:**
-Could add a context/deadline parameter to every trait method or handle it at the call site. **Handled at orchestrator (T1-06) call site** via `tokio::time::timeout`, not inside the port trait signatures — avoids changing the T1-02 API and keeps adapters simpler. Adapters enforce their own default timeouts.
+**Option C — Defer `RegistryGrpcAdapter`:** Would leave "calls Registry service via compiled proto" unmet and leave build plumbing untested. Rejected.
 
-### Decision
+**Decision: Option A.** Placeholder proto at `proto/registry/v1/registry.proto`; full gRPC adapter implemented against it now.
 
-- Define minimal Registry proto in this repo as a forward contract
-- Shared `policy` module in `engagement-hub-adapters/src/policy/`
-- Four adapters: `RegistryStubAdapter`, `RegistryGrpcAdapter`, `PostCallHttpAdapter`, `AnalyticsHttpAdapter`
-- `InternalPanic` variant added to all 5 error enums now (T1-04 write adapters won't need a ports change)
-- Deadline propagation at orchestrator call-site; adapters use built-in default timeouts
-- Metrics (`engagementhub_adapter_retries_total`, `engagementhub_deadline_exceeded_total`) emitted from policy layer; counters registered in `engagement-hub/src/metrics.rs`
-- Panic linter: `#![deny(clippy::unwrap_used, clippy::expect_used)]` on adapters crate
+### Q2 — Deadline propagation
+
+The port traits carry no context/deadline parameter (locked from T1-02). PRD §12 requires `adapter_deadline = min(caller_remaining - 50ms, adapter_default)`.
+
+**Option A — Adapter-default timeout only (chosen):** each adapter struct holds `timeout: Duration` set at construction; every call wraps with `tokio::time::timeout(self.timeout, …)`. No cross-crate changes. True caller-deadline threading deferred to T1-06.
+
+**Option B — `deadline` field in request types:** additive change to T1-02 types (`deadline: Option<Instant>`). Cleaner long-term; deferred until T1-06 orchestrator wires things together.
+
+**Option C — `WithDeadline<A>` wrapper:** per-request adapter newtype; over-engineered for 3 adapters now.
+
+**Decision: Option A.** Option B is the documented upgrade path, deferred to T1-06.
+
+### Q3 — Cross-cutting policy structure
+
+**Option A — Inline per method:** ~14 copies of retry + catch_unwind + backoff boilerplate; adding a new policy touches all 14 methods.
+
+**Option B — Shared `policies.rs` helper (chosen):** single `with_retry<F, Fut, T, E>(config, timeout, target, f)` generic async fn. Each adapter method calls the helper. Policy changes are a one-file edit. T1-04 write adapters get it for free.
+
+**Option C — `PolicyAdapter<A>` wrapping struct:** clean separation but overkill for 3 adapters; adds DI complexity in `main.rs`.
+
+**Decision: Option B.**
+
+### Endpoint contracts
+
+Real contracts extracted from admin-backend (`cmd/server/admin/calllog/services.go` and `analytic/service.go`).
+
+**PostCall** (base: ai-handler / post-call-worker):
+- `GET /calls/{id}/transcription`
+- `GET /calls/{id}/summary` → unwrap `.data`
+- `GET /calls/{id}/sentiment` → unwrap `.data`
+- `GET /calls/{id}/state` (output extraction) → unwrap `.data`
+- `GET /calls/{agent_id}/history-call?limit=&skip=&start_date=&end_date=&identity=&id=&batch_id=`
+- `GET /calls/organizations/{org_id}?limit=&skip=&start_date=&end_date=&contact_number=&call_id=`
+
+**Analytics** (base: ai-handler):
+- `GET /calls/agents/{agent_id}/analytics?metric=&granularity=&startDate=&endDate=`
+- `GET /calls/agents/{agent_id}/metrics?…` → unwrap `.data`
+- `GET /calls/organizations/{org_id}/analytics?…`
+- `GET /calls/organizations/{org_id}/metrics?…` → unwrap `.data`
+
+`EngagementId` is passed as-is as the downstream call ID. Final ID alignment with post-call-worker resolves in T1-06.
+
+### File layout decided
+
+```
+proto/registry/v1/registry.proto
+crates/engagement-hub-adapters/
+  build.rs
+  Cargo.toml  (add: prost, futures, rand, wiremock[dev])
+  src/
+    lib.rs
+    policies.rs          (with_retry, RetryConfig, IsRetryable)
+    metrics.rs           (Prometheus counters)
+    registry_stub.rs     (#[cfg(feature="registry-stub")])
+    registry_grpc.rs     (RegistryGrpcAdapter + prod-idle guard fn)
+    post_call_http.rs
+    analytics_http.rs
+  tests/
+    policies_tests.rs
+    registry_stub_tests.rs
+    registry_grpc_tests.rs
+    post_call_http_tests.rs
+    analytics_http_tests.rs
+```
+
+Cargo feature `registry-stub = []` gates `RegistryStubAdapter`. `RegistryGrpcAdapter` always compiled. Production builds ship without `registry-stub`; the runtime prod-idle guard (`validate_registry_adapter_config()` in `registry_grpc.rs`) is a second safety layer for dev/staging.
+
+Panic linter: CI grep in `ci-code-quality.yml` scans `crates/engagement-hub-adapters/src/` for `.unwrap()`/`.expect()` outside of `policies.rs`, failing the build if any are found.
+
+### Deferred items
+
+- **Deadline propagation (Option B):** add `deadline: Option<Instant>` to request types when T1-06 wires the orchestrator
+- **`#[source]` error chaining:** deferred from T1-02; implement here for transport error wrapping
+- **`async_trait` → native AFIT migration:** after API surface stabilises
+- **Registry gRPC integration smoke test:** deferred until Registry Service exists
 
 ## Implementation plan
 
-_To be filled in by writing-plans._
+_To be written by `writing-plans` skill._
