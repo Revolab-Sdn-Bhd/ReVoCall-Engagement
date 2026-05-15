@@ -42,9 +42,13 @@ CREATE TABLE engagements (
     started_at               TIMESTAMPTZ,
     ended_at                 TIMESTAMPTZ,
     CONSTRAINT engagements_request_unique UNIQUE (organization_id, request_id),
+    -- Note: deviates from PRD §11 to also reject unknown contact_kind values.
+    -- PRD's CHECK only constrained kinds 1 and 2 but silently accepted any
+    -- other kind (incl. 0) with both contact fields NULL. Caught in T1-01 review.
     CONSTRAINT engagements_contact_check
-        CHECK ((contact_kind = 1 AND contact_id IS NOT NULL)
-            OR (contact_kind = 2 AND contact_phone_e164 IS NOT NULL))
+        CHECK (contact_kind IN (1, 2)
+            AND ((contact_kind = 1 AND contact_id IS NOT NULL)
+              OR (contact_kind = 2 AND contact_phone_e164 IS NOT NULL)))
 );
 
 CREATE INDEX engagements_org_updated_id_idx
@@ -136,8 +140,10 @@ CREATE INDEX engagement_events_engagement_seq_idx
 CREATE INDEX engagement_events_batch_idx
     ON engagement_events (organization_id, occurred_at DESC);
 
-CREATE INDEX engagement_events_event_pk_idx
-    ON engagement_events (event_pk);
+-- Note: PRD §11 lists an explicit btree on event_pk, but
+-- `event_pk BIGSERIAL NOT NULL UNIQUE` already creates the equivalent unique
+-- index automatically. The explicit one was a duplicate doubling write-time
+-- index maintenance on this hot append table. Caught in T1-01 review.
 
 CREATE OR REPLACE FUNCTION trg_notify_engagement_event() RETURNS trigger AS $$
 BEGIN
