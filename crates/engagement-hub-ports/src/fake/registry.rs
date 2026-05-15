@@ -66,6 +66,7 @@ impl RegistryPort for FakeRegistryPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(RegistryError::Transient(msg)),
             Outcome::Permanent(msg) => Err(RegistryError::Permanent(msg)),
+            Outcome::Unavailable => Err(RegistryError::Unavailable),
             Outcome::Panic => panic!("FakeRegistryPort::resolve_snapshot panic injected"),
         }
     }
@@ -85,6 +86,7 @@ impl RegistryPort for FakeRegistryPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(RegistryError::Transient(msg)),
             Outcome::Permanent(msg) => Err(RegistryError::Permanent(msg)),
+            Outcome::Unavailable => Err(RegistryError::Unavailable),
             Outcome::Panic => panic!("FakeRegistryPort::get_voice_profile panic injected"),
         }
     }
@@ -120,6 +122,14 @@ mod tests {
         fake.push_resolve_snapshot(Outcome::Permanent("not found".into()));
         let result = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
         assert!(matches!(result, Err(RegistryError::Permanent(_))));
+    }
+
+    #[tokio::test]
+    async fn resolve_snapshot_unavailable() {
+        let fake = FakeRegistryPort::new();
+        fake.push_resolve_snapshot(Outcome::Unavailable);
+        let result = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        assert!(matches!(result, Err(RegistryError::Unavailable)));
     }
 
     #[tokio::test]

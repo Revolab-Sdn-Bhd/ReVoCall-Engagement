@@ -93,6 +93,7 @@ impl PostCallPort for FakePostCallPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(PostCallError::Transient(msg)),
             Outcome::Permanent(msg) => Err(PostCallError::Permanent(msg)),
+            Outcome::Unavailable => Err(PostCallError::Unavailable),
             Outcome::Panic => panic!("FakePostCallPort::get_transcript panic injected"),
         }
     }
@@ -112,6 +113,7 @@ impl PostCallPort for FakePostCallPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(PostCallError::Transient(msg)),
             Outcome::Permanent(msg) => Err(PostCallError::Permanent(msg)),
+            Outcome::Unavailable => Err(PostCallError::Unavailable),
             Outcome::Panic => panic!("FakePostCallPort::get_summary panic injected"),
         }
     }
@@ -131,6 +133,7 @@ impl PostCallPort for FakePostCallPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(PostCallError::Transient(msg)),
             Outcome::Permanent(msg) => Err(PostCallError::Permanent(msg)),
+            Outcome::Unavailable => Err(PostCallError::Unavailable),
             Outcome::Panic => panic!("FakePostCallPort::get_sentiment panic injected"),
         }
     }
@@ -150,6 +153,7 @@ impl PostCallPort for FakePostCallPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(PostCallError::Transient(msg)),
             Outcome::Permanent(msg) => Err(PostCallError::Permanent(msg)),
+            Outcome::Unavailable => Err(PostCallError::Unavailable),
             Outcome::Panic => panic!("FakePostCallPort::get_output_extraction panic injected"),
         }
     }
@@ -169,6 +173,7 @@ impl PostCallPort for FakePostCallPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(PostCallError::Transient(msg)),
             Outcome::Permanent(msg) => Err(PostCallError::Permanent(msg)),
+            Outcome::Unavailable => Err(PostCallError::Unavailable),
             Outcome::Panic => panic!("FakePostCallPort::list_agent_call_logs panic injected"),
         }
     }
@@ -188,6 +193,7 @@ impl PostCallPort for FakePostCallPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(PostCallError::Transient(msg)),
             Outcome::Permanent(msg) => Err(PostCallError::Permanent(msg)),
+            Outcome::Unavailable => Err(PostCallError::Unavailable),
             Outcome::Panic => panic!("FakePostCallPort::list_org_call_logs panic injected"),
         }
     }
@@ -233,6 +239,14 @@ mod tests {
         fake.push_get_transcript(Outcome::Permanent("not found".into()));
         let result = fake.get_transcript(&eng_id()).await;
         assert!(matches!(result, Err(PostCallError::Permanent(_))));
+    }
+
+    #[tokio::test]
+    async fn get_transcript_unavailable() {
+        let fake = FakePostCallPort::new();
+        fake.push_get_transcript(Outcome::Unavailable);
+        let result = fake.get_transcript(&eng_id()).await;
+        assert!(matches!(result, Err(PostCallError::Unavailable)));
     }
 
     #[tokio::test]

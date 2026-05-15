@@ -74,6 +74,7 @@ impl JourneyManagerPort for FakeJourneyManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(JmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(JmError::Permanent(msg)),
+            Outcome::Unavailable => Err(JmError::Unavailable),
             Outcome::Panic => panic!("FakeJourneyManagerPort::create_execution panic injected"),
         }
     }
@@ -94,6 +95,7 @@ impl JourneyManagerPort for FakeJourneyManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(JmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(JmError::Permanent(msg)),
+            Outcome::Unavailable => Err(JmError::Unavailable),
             Outcome::Panic => panic!("FakeJourneyManagerPort::cancel_execution panic injected"),
         }
     }
@@ -114,6 +116,7 @@ impl JourneyManagerPort for FakeJourneyManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(JmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(JmError::Permanent(msg)),
+            Outcome::Unavailable => Err(JmError::Unavailable),
             Outcome::Panic => {
                 panic!("FakeJourneyManagerPort::get_execution_timeline panic injected")
             }
@@ -156,6 +159,14 @@ mod tests {
         fake.push_create_execution(Outcome::Permanent("invalid".into()));
         let result = fake.create_execution(CreateExecutionReq {}).await;
         assert!(matches!(result, Err(JmError::Permanent(_))));
+    }
+
+    #[tokio::test]
+    async fn create_execution_unavailable() {
+        let fake = FakeJourneyManagerPort::new();
+        fake.push_create_execution(Outcome::Unavailable);
+        let result = fake.create_execution(CreateExecutionReq {}).await;
+        assert!(matches!(result, Err(JmError::Unavailable)));
     }
 
     #[tokio::test]

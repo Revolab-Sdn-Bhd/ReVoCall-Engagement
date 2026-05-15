@@ -9,4 +9,5 @@ pub use error::*;
 pub mod ports;
 pub use ports::*;
 
+#[cfg(feature = "fake")]
 pub mod fake;

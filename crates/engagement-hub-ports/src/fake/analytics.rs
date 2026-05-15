@@ -81,6 +81,7 @@ impl AnalyticsPort for FakeAnalyticsPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(AnalyticsError::Transient(msg)),
             Outcome::Permanent(msg) => Err(AnalyticsError::Permanent(msg)),
+            Outcome::Unavailable => Err(AnalyticsError::Unavailable),
             Outcome::Panic => panic!("FakeAnalyticsPort::get_agent_analytics panic injected"),
         }
     }
@@ -100,6 +101,7 @@ impl AnalyticsPort for FakeAnalyticsPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(AnalyticsError::Transient(msg)),
             Outcome::Permanent(msg) => Err(AnalyticsError::Permanent(msg)),
+            Outcome::Unavailable => Err(AnalyticsError::Unavailable),
             Outcome::Panic => panic!("FakeAnalyticsPort::get_agent_metrics panic injected"),
         }
     }
@@ -119,6 +121,7 @@ impl AnalyticsPort for FakeAnalyticsPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(AnalyticsError::Transient(msg)),
             Outcome::Permanent(msg) => Err(AnalyticsError::Permanent(msg)),
+            Outcome::Unavailable => Err(AnalyticsError::Unavailable),
             Outcome::Panic => panic!("FakeAnalyticsPort::get_org_analytics panic injected"),
         }
     }
@@ -138,6 +141,7 @@ impl AnalyticsPort for FakeAnalyticsPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(AnalyticsError::Transient(msg)),
             Outcome::Permanent(msg) => Err(AnalyticsError::Permanent(msg)),
+            Outcome::Unavailable => Err(AnalyticsError::Unavailable),
             Outcome::Panic => panic!("FakeAnalyticsPort::get_org_metrics panic injected"),
         }
     }
@@ -175,6 +179,14 @@ mod tests {
         fake.push_get_agent_analytics(Outcome::Permanent("forbidden".into()));
         let result = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
         assert!(matches!(result, Err(AnalyticsError::Permanent(_))));
+    }
+
+    #[tokio::test]
+    async fn get_agent_analytics_unavailable() {
+        let fake = FakeAnalyticsPort::new();
+        fake.push_get_agent_analytics(Outcome::Unavailable);
+        let result = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        assert!(matches!(result, Err(AnalyticsError::Unavailable)));
     }
 
     #[tokio::test]

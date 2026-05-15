@@ -105,6 +105,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::start_voice_session panic injected"),
         }
     }
@@ -125,6 +126,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::stop_voice_session panic injected"),
         }
     }
@@ -144,6 +146,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::issue_test_token panic injected"),
         }
     }
@@ -163,6 +166,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::create_telephony panic injected"),
         }
     }
@@ -182,6 +186,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::list_telephonies panic injected"),
         }
     }
@@ -201,6 +206,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::get_telephony panic injected"),
         }
     }
@@ -220,6 +226,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::update_telephony panic injected"),
         }
     }
@@ -240,6 +247,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
             Outcome::Success(v) => Ok(v),
             Outcome::Transient(msg) => Err(VmError::Transient(msg)),
             Outcome::Permanent(msg) => Err(VmError::Permanent(msg)),
+            Outcome::Unavailable => Err(VmError::Unavailable),
             Outcome::Panic => panic!("FakeVoiceManagerPort::delete_telephony panic injected"),
         }
     }
@@ -286,6 +294,14 @@ mod tests {
         fake.push_start_voice_session(Outcome::Permanent("invalid".into()));
         let result = fake.start_voice_session(StartVoiceSessionReq {}).await;
         assert!(matches!(result, Err(VmError::Permanent(_))));
+    }
+
+    #[tokio::test]
+    async fn start_voice_session_unavailable() {
+        let fake = FakeVoiceManagerPort::new();
+        fake.push_start_voice_session(Outcome::Unavailable);
+        let result = fake.start_voice_session(StartVoiceSessionReq {}).await;
+        assert!(matches!(result, Err(VmError::Unavailable)));
     }
 
     #[tokio::test]

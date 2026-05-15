@@ -25,6 +25,8 @@ pub enum Outcome<T> {
     Transient(String),
     /// Return `Err(XxxError::Permanent(msg))`.
     Permanent(String),
+    /// Return `Err(XxxError::Unavailable)`.
+    Unavailable,
     /// Call `panic!` inside the method.
     Panic,
 }
