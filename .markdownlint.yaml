@@ -1,0 +1,11 @@
+default: true
+# Line length disabled — long sentences and tables in design docs are intentional.
+MD013: false
+# Inline HTML allowed (used in tables / details).
+MD033: false
+# First line not required to be a top-level heading.
+MD041: false
+# Multiple top-level headings allowed.
+MD025: false
+# Don't require fenced code blocks to specify a language.
+MD040: false
