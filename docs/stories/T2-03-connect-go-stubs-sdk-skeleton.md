@@ -41,4 +41,24 @@ Story doc path references corrected: T2-03 acceptance criteria and T2-12 use `cl
 
 ## Implementation plan
 
-_To be added after writing-plans._
+### Design decisions
+
+- SDK module lives at `clients/go/engagementhub/` (PRD §8.1 canonical path; `pkg/engagementhub/` in the story doc acceptance criteria was a naming inconsistency corrected here).
+- buf managed mode with `go_package_prefix` override routes generated import paths to `clients/go/engagementhub/internal/gen/...` without touching the proto files set in T2-01/T2-02.
+- `paths=source_relative` maps proto source paths to output paths directly.
+- gRPC-only enforcement deferred to T2-04 (`connect.WithGRPC()` at connection construction); stub generation is protocol-agnostic.
+- Two direct deps only: `connectrpc.com/connect` (runtime for Connect stubs) and `google.golang.org/protobuf` (proto runtime + WKT). No `google.golang.org/genproto` needed — WKT are in the `protobuf` module.
+
+### Tasks
+
+1. Create `buf.gen.yaml` — managed mode + plugin config; verify `buf lint`
+2. Run `buf generate` — produce 10 generated files; verify import paths
+3. Create `clients/go/engagementhub/go.mod`; run `go mod tidy`; verify `go build ./...`
+4. Add `buf-gen` recipe to `justfile`; verify idempotent regeneration
+5. Correct `pkg/engagementhub/` → `clients/go/engagementhub/` in external story docs; finalise this file
+
+### Deferred
+
+- Hand-written SDK code (`client.go`, `options.go`, middleware) — T2-04 onward
+- gRPC-only enforcement via `connect.WithGRPC()` — T2-04
+- `enghubtest` fake client — T2-11
