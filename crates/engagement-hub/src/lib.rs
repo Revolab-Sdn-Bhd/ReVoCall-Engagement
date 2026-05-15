@@ -5,3 +5,4 @@ pub mod db;
 pub mod metrics;
 pub mod server;
 pub mod shutdown;
+pub mod telemetry;
