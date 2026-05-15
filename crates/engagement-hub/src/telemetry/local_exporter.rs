@@ -199,8 +199,12 @@ impl JsonlFileExporter {
             let date_str = &without_ext[without_ext.len() - 10..];
             if let Ok(file_date) = date_str.parse::<NaiveDate>()
                 && (today - file_date).num_days() > retention_days
+                && let Err(e) = std::fs::remove_file(entry.path())
             {
-                let _ = std::fs::remove_file(entry.path());
+                eprintln!(
+                    "[otel:local] failed to purge old trace file {:?}: {e}",
+                    entry.path()
+                );
             }
         }
     }

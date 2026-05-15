@@ -5,7 +5,6 @@
 set -euo pipefail
 
 TRACES_DIR="${TRACES_DIR:-.traces}"
-THRESHOLD_MS="${2:-1000}"
 
 # jq snippet to extract flat span records from one OTLP JSON envelope line
 JQ_FLATTEN='
@@ -43,25 +42,30 @@ case "$1" in
   engagement)
     [[ $# -lt 2 ]] && { echo "error: engagement requires an id"; exit 1; }
     ID="$2"
-    jq -cn --arg id "$ID" \
-      "[inputs | $JQ_FLATTEN | select(.attrs[\"revolab.engagement_id\"] == \$id)]" \
+    jq -Rn --arg id "$ID" \
+      "[inputs | fromjson? // empty | $JQ_FLATTEN | select(.attrs[\"revolab.engagement_id\"] == \$id)]" \
       "${FILES[@]}"
     ;;
   trace)
     [[ $# -lt 2 ]] && { echo "error: trace requires a trace_id"; exit 1; }
     TID="$2"
-    jq -cn --arg tid "$TID" \
-      "[inputs | $JQ_FLATTEN | select(.trace_id == \$tid)]" \
+    jq -Rn --arg tid "$TID" \
+      "[inputs | fromjson? // empty | $JQ_FLATTEN | select(.trace_id == \$tid)]" \
       "${FILES[@]}"
     ;;
   slow)
-    jq -cn --argjson ms "$THRESHOLD_MS" \
-      "[inputs | $JQ_FLATTEN | select(.duration_ms >= \$ms)]" \
+    THRESHOLD_MS="${2:-1000}"
+    if ! [[ "$THRESHOLD_MS" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+      echo "error: threshold must be a number (got: '$THRESHOLD_MS')" >&2
+      exit 2
+    fi
+    jq -Rn --argjson ms "$THRESHOLD_MS" \
+      "[inputs | fromjson? // empty | $JQ_FLATTEN | select(.duration_ms >= \$ms)]" \
       "${FILES[@]}"
     ;;
   errors)
-    jq -cn \
-      '[inputs | '"$JQ_FLATTEN"' | select(.status == "STATUS_CODE_ERROR")]' \
+    jq -Rn \
+      '[inputs | fromjson? // empty | '"$JQ_FLATTEN"' | select(.status == "STATUS_CODE_ERROR")]' \
       "${FILES[@]}"
     ;;
   *)
