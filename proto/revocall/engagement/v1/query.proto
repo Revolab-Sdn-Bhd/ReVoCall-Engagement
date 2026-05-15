@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package revocall.engagement.v1;
+
+import "google/protobuf/timestamp.proto";
+import "revocall/engagement/v1/engagement.proto";
+import "revocall/engagement/v1/watch.proto";
+
+option go_package = "github.com/Revolab-Sdn-Bhd/ReVoCall-Engagement/gen/go/revocall/engagement/v1;engagementv1";
+
+// ── GetEngagement ─────────────────────────────────────────────────────────────
+
+message GetEngagementRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  reserved 100 to 199;
+}
+
+message GetEngagementResponse {
+  Engagement engagement = 1;
+}
+
+// ── ListEngagements (AIP-158 keyset pagination) ───────────────────────────────
+
+message ListEngagementsRequest {
+  string organization_id           = 1;
+  int32 page_size                  = 2;
+  string page_token                = 3;
+  optional string batch_id         = 4;
+  optional EngagementStatus status = 5;
+  optional string contact_id       = 6;
+  reserved 100 to 199;
+}
+
+message ListEngagementsResponse {
+  repeated Engagement engagements = 1;
+  string next_page_token          = 2;
+}
+
+// ── ListEngagementEvents (AIP-158 keyset pagination) ─────────────────────────
+
+message ListEngagementEventsRequest {
+  string organization_id              = 1;
+  string engagement_id               = 2;
+  int32 page_size                    = 3;
+  string page_token                  = 4;
+  optional EngagementEventType type  = 5;
+  reserved 100 to 199;
+}
+
+message ListEngagementEventsResponse {
+  repeated EngagementEvent events = 1;
+  string next_page_token          = 2;
+}
+
+// ── GetEngagementJourneyTimeline (proxied to Journey Manager) ─────────────────
+
+message GetEngagementJourneyTimelineRequest {
+  string organization_id = 1;
+  string engagement_id   = 2;
+  reserved 100 to 199;
+}
+
+message JourneyTimelineStep {
+  string step_id                               = 1;
+  string step_type                             = 2;
+  string step_name                             = 3;
+  google.protobuf.Timestamp entered_at         = 4;
+  optional google.protobuf.Timestamp exited_at = 5;
+  map<string, string> attributes               = 6;
+}
+
+message GetEngagementJourneyTimelineResponse {
+  string engagement_id                 = 1;
+  string journey_execution_ref         = 2;
+  repeated JourneyTimelineStep steps   = 3;
+}
