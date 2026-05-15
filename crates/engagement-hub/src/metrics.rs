@@ -1,5 +1,5 @@
 use anyhow::Result;
-use prometheus::{IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry};
+use prometheus::{Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry};
 
 use crate::config::{Env, RegistryAdapter};
 
@@ -20,6 +20,16 @@ pub struct Metrics {
     pub audit_insert_failures_total: IntCounter,
     pub listen_notify_reconnects_total: IntCounter,
     pub db_failover_detected_total: IntCounter,
+    // --- Histograms ---
+    pub rpc_duration_seconds: HistogramVec,
+    pub adapter_duration_seconds: HistogramVec,
+    pub orchestration_duration_seconds: HistogramVec,
+    pub startup_duration_seconds: HistogramVec,
+    pub call_duration_seconds: HistogramVec,
+    pub time_to_first_response_seconds: Histogram,
+    pub watch_stream_duration_seconds: Histogram,
+    pub listen_notify_fanout_latency_seconds: Histogram,
+    pub audit_insert_duration_seconds: Histogram,
 }
 
 impl Metrics {
@@ -147,6 +157,117 @@ impl Metrics {
         )?;
         registry.register(Box::new(db_failover_detected_total.clone()))?;
 
+        // --- Histograms ---
+        let rpc_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "engagementhub_rpc_duration_seconds",
+                "RPC handler duration in seconds",
+            )
+            .buckets(vec![0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0]),
+            &["rpc", "code"],
+        )?;
+        registry.register(Box::new(rpc_duration_seconds.clone()))?;
+
+        let adapter_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "engagementhub_adapter_duration_seconds",
+                "Adapter call duration in seconds",
+            )
+            .buckets(vec![0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5]),
+            &["target", "method", "code"],
+        )?;
+        registry.register(Box::new(adapter_duration_seconds.clone()))?;
+
+        let orchestration_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "engagementhub_orchestration_duration_seconds",
+                "Top-level orchestration operation duration in seconds",
+            )
+            .buckets(vec![0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0]),
+            &["stage"],
+        )?;
+        registry.register(Box::new(orchestration_duration_seconds.clone()))?;
+        for stage in [
+            "start_engagement",
+            "stop_engagement",
+            "cancel_engagement",
+            "saga_compensation",
+        ] {
+            orchestration_duration_seconds.with_label_values(&[stage]);
+        }
+
+        let startup_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "engagementhub_startup_duration_seconds",
+                "StartEngagement per-stage duration in seconds",
+            )
+            .buckets(vec![0.001, 0.010, 0.050, 0.100, 0.500, 1.0, 5.0]),
+            &["stage"],
+        )?;
+        registry.register(Box::new(startup_duration_seconds.clone()))?;
+        for stage in [
+            "validate_and_commit",
+            "registry_resolve",
+            "route_resolved_commit",
+            "parallel_bind",
+            "invocation_requested_commit",
+            "audit",
+        ] {
+            startup_duration_seconds.with_label_values(&[stage]);
+        }
+
+        let call_duration_seconds = HistogramVec::new(
+            HistogramOpts::new(
+                "engagementhub_call_duration_seconds",
+                "Total call duration in seconds by outcome",
+            )
+            .buckets(vec![
+                5.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0, 1800.0, 3600.0,
+            ]),
+            &["outcome"],
+        )?;
+        registry.register(Box::new(call_duration_seconds.clone()))?;
+
+        let time_to_first_response_seconds = Histogram::with_opts(
+            HistogramOpts::new(
+                "engagementhub_time_to_first_response_seconds",
+                "Time from engagement start to first AI response in seconds",
+            )
+            .buckets(vec![0.100, 0.250, 0.500, 1.0, 2.0, 5.0, 10.0, 30.0]),
+        )?;
+        registry.register(Box::new(time_to_first_response_seconds.clone()))?;
+
+        let watch_stream_duration_seconds = Histogram::with_opts(
+            HistogramOpts::new(
+                "engagementhub_watch_stream_duration_seconds",
+                "Watch stream session duration in seconds",
+            )
+            .buckets(vec![10.0, 60.0, 300.0, 1800.0, 3600.0, 14400.0, 86400.0]),
+        )?;
+        registry.register(Box::new(watch_stream_duration_seconds.clone()))?;
+
+        let listen_notify_fanout_latency_seconds = Histogram::with_opts(
+            HistogramOpts::new(
+                "engagementhub_listen_notify_fanout_latency_seconds",
+                "LISTEN/NOTIFY fanout latency in seconds",
+            )
+            .buckets(vec![
+                0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5,
+            ]),
+        )?;
+        registry.register(Box::new(listen_notify_fanout_latency_seconds.clone()))?;
+
+        let audit_insert_duration_seconds = Histogram::with_opts(
+            HistogramOpts::new(
+                "engagementhub_audit_insert_duration_seconds",
+                "Audit row insert duration in seconds",
+            )
+            .buckets(vec![
+                0.001, 0.002, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500,
+            ]),
+        )?;
+        registry.register(Box::new(audit_insert_duration_seconds.clone()))?;
+
         Ok(Self {
             registry,
             registry_adapter_kind,
@@ -163,6 +284,15 @@ impl Metrics {
             audit_insert_failures_total,
             listen_notify_reconnects_total,
             db_failover_detected_total,
+            rpc_duration_seconds,
+            adapter_duration_seconds,
+            orchestration_duration_seconds,
+            startup_duration_seconds,
+            call_duration_seconds,
+            time_to_first_response_seconds,
+            watch_stream_duration_seconds,
+            listen_notify_fanout_latency_seconds,
+            audit_insert_duration_seconds,
         })
     }
 
@@ -216,6 +346,12 @@ mod tests {
     #[test]
     fn all_histograms_registered() {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        // Touch labeled histograms with no static pre-init so their families
+        // appear in gather_text output. Same reasoning as counter Vec touches above —
+        // test-only throwaway instance, no production side effects.
+        m.rpc_duration_seconds.with_label_values(&["_", "_"]);
+        m.adapter_duration_seconds.with_label_values(&["_", "_", "_"]);
+        m.call_duration_seconds.with_label_values(&["_"]);
         let text = m.gather_text().unwrap();
         for name in [
             "engagementhub_rpc_duration_seconds",
