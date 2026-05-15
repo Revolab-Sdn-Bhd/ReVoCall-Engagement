@@ -6,11 +6,8 @@
 //   cargo test -p engagement-hub-adapters --features engagement-hub-ports/fake
 
 use engagement_hub_adapters::{
-    RegistryGrpcAdapter,
-    JourneyManagerGrpcAdapter,
+    AnalyticsHttpAdapter, JourneyManagerGrpcAdapter, PostCallHttpAdapter, RegistryGrpcAdapter,
     VoiceManagerHttpAdapter,
-    PostCallHttpAdapter,
-    AnalyticsHttpAdapter,
 };
 
 // Compile-time check: all adapter types are importable

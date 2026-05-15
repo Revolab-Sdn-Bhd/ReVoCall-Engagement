@@ -5,14 +5,12 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
+use super::Outcome;
 use crate::{
     error::JmError,
     ports::JourneyManagerPort,
-    types::{
-        CancelReason, CreateExecutionReq, ExecutionRef, Timeline, TimelineOpts,
-    },
+    types::{CancelReason, CreateExecutionReq, ExecutionRef, Timeline, TimelineOpts},
 };
-use super::Outcome;
 
 // ---------------------------------------------------------------------------
 // Inner state
@@ -45,15 +43,27 @@ impl FakeJourneyManagerPort {
     }
 
     pub fn push_create_execution(&self, outcome: Outcome<ExecutionRef>) {
-        self.inner.lock().unwrap().create_execution.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .create_execution
+            .push_back(outcome);
     }
 
     pub fn push_cancel_execution(&self, outcome: Outcome<()>) {
-        self.inner.lock().unwrap().cancel_execution.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .cancel_execution
+            .push_back(outcome);
     }
 
     pub fn push_get_execution_timeline(&self, outcome: Outcome<Timeline>) {
-        self.inner.lock().unwrap().get_execution_timeline.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_execution_timeline
+            .push_back(outcome);
     }
 }
 
@@ -65,10 +75,7 @@ impl Default for FakeJourneyManagerPort {
 
 #[async_trait]
 impl JourneyManagerPort for FakeJourneyManagerPort {
-    async fn create_execution(
-        &self,
-        _req: CreateExecutionReq,
-    ) -> Result<ExecutionRef, JmError> {
+    async fn create_execution(&self, _req: CreateExecutionReq) -> Result<ExecutionRef, JmError> {
         match self
             .inner
             .lock()
@@ -180,10 +187,9 @@ mod tests {
     async fn create_execution_panic() {
         let fake = FakeJourneyManagerPort::new();
         fake.push_create_execution(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.create_execution(CreateExecutionReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.create_execution(CreateExecutionReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -192,7 +198,9 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_cancel_execution(Outcome::Success(()));
         let ref_ = exec_ref();
-        let result = fake.cancel_execution(&ref_, CancelReason::UserRequested).await;
+        let result = fake
+            .cancel_execution(&ref_, CancelReason::UserRequested)
+            .await;
         assert!(result.is_ok());
     }
 
@@ -201,7 +209,9 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_cancel_execution(Outcome::Transient("timeout".into()));
         let ref_ = exec_ref();
-        let result = fake.cancel_execution(&ref_, CancelReason::UserRequested).await;
+        let result = fake
+            .cancel_execution(&ref_, CancelReason::UserRequested)
+            .await;
         assert!(matches!(result, Err(JmError::Transient(_))));
     }
 
@@ -210,7 +220,9 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_cancel_execution(Outcome::Permanent("not found".into()));
         let ref_ = exec_ref();
-        let result = fake.cancel_execution(&ref_, CancelReason::UserRequested).await;
+        let result = fake
+            .cancel_execution(&ref_, CancelReason::UserRequested)
+            .await;
         assert!(matches!(result, Err(JmError::Permanent(_))));
     }
 
@@ -220,7 +232,8 @@ mod tests {
         fake.push_cancel_execution(Outcome::Panic);
         let ref_ = exec_ref();
         let result = tokio::task::spawn(async move {
-            fake.cancel_execution(&ref_, CancelReason::UserRequested).await
+            fake.cancel_execution(&ref_, CancelReason::UserRequested)
+                .await
         })
         .await;
         assert!(result.unwrap_err().is_panic());
@@ -258,10 +271,11 @@ mod tests {
         let fake = FakeJourneyManagerPort::new();
         fake.push_get_execution_timeline(Outcome::Panic);
         let ref_ = exec_ref();
-        let result = tokio::task::spawn(async move {
-            fake.get_execution_timeline(&ref_, TimelineOpts {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.get_execution_timeline(&ref_, TimelineOpts {}).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -285,10 +299,9 @@ mod tests {
     async fn test_create_execution_empty_queue_panics() {
         let fake = FakeJourneyManagerPort::new();
         // Don't push anything
-        let result = tokio::task::spawn(async move {
-            fake.create_execution(CreateExecutionReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.create_execution(CreateExecutionReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 }

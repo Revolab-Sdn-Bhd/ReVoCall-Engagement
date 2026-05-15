@@ -5,15 +5,15 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
+use super::Outcome;
 use crate::{
     error::AnalyticsError,
     ports::AnalyticsPort,
     types::{
-        Analytics, GetAgentAnalyticsReq, GetAgentMetricsReq, GetOrgAnalyticsReq,
-        GetOrgMetricsReq, Metrics,
+        Analytics, GetAgentAnalyticsReq, GetAgentMetricsReq, GetOrgAnalyticsReq, GetOrgMetricsReq,
+        Metrics,
     },
 };
-use super::Outcome;
 
 // ---------------------------------------------------------------------------
 // Inner state
@@ -48,19 +48,35 @@ impl FakeAnalyticsPort {
     }
 
     pub fn push_get_agent_analytics(&self, outcome: Outcome<Analytics>) {
-        self.inner.lock().unwrap().get_agent_analytics.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_agent_analytics
+            .push_back(outcome);
     }
 
     pub fn push_get_agent_metrics(&self, outcome: Outcome<Metrics>) {
-        self.inner.lock().unwrap().get_agent_metrics.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_agent_metrics
+            .push_back(outcome);
     }
 
     pub fn push_get_org_analytics(&self, outcome: Outcome<Analytics>) {
-        self.inner.lock().unwrap().get_org_analytics.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_org_analytics
+            .push_back(outcome);
     }
 
     pub fn push_get_org_metrics(&self, outcome: Outcome<Metrics>) {
-        self.inner.lock().unwrap().get_org_metrics.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_org_metrics
+            .push_back(outcome);
     }
 }
 
@@ -92,10 +108,7 @@ impl AnalyticsPort for FakeAnalyticsPort {
         }
     }
 
-    async fn get_agent_metrics(
-        &self,
-        _req: GetAgentMetricsReq,
-    ) -> Result<Metrics, AnalyticsError> {
+    async fn get_agent_metrics(&self, _req: GetAgentMetricsReq) -> Result<Metrics, AnalyticsError> {
         match self
             .inner
             .lock()
@@ -132,10 +145,7 @@ impl AnalyticsPort for FakeAnalyticsPort {
         }
     }
 
-    async fn get_org_metrics(
-        &self,
-        _req: GetOrgMetricsReq,
-    ) -> Result<Metrics, AnalyticsError> {
+    async fn get_org_metrics(&self, _req: GetOrgMetricsReq) -> Result<Metrics, AnalyticsError> {
         match self
             .inner
             .lock()
@@ -199,10 +209,11 @@ mod tests {
     async fn get_agent_analytics_panic() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_analytics(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.get_agent_analytics(GetAgentAnalyticsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.get_agent_analytics(GetAgentAnalyticsReq {}).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -236,10 +247,9 @@ mod tests {
     async fn get_agent_metrics_panic() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_metrics(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.get_agent_metrics(GetAgentMetricsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.get_agent_metrics(GetAgentMetricsReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -273,10 +283,9 @@ mod tests {
     async fn get_org_analytics_panic() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_analytics(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.get_org_analytics(GetOrgAnalyticsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.get_org_analytics(GetOrgAnalyticsReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -310,10 +319,9 @@ mod tests {
     async fn get_org_metrics_panic() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_metrics(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.get_org_metrics(GetOrgMetricsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.get_org_metrics(GetOrgMetricsReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -337,10 +345,11 @@ mod tests {
     async fn test_get_agent_analytics_empty_queue_panics() {
         let fake = FakeAnalyticsPort::new();
         // Don't push anything
-        let result = tokio::task::spawn(async move {
-            fake.get_agent_analytics(GetAgentAnalyticsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.get_agent_analytics(GetAgentAnalyticsReq {}).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 }

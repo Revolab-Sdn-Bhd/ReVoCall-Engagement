@@ -126,9 +126,15 @@ pub struct ExecutionRef {
 }
 
 impl ExecutionRef {
-    pub fn new(id: Uuid) -> Self { Self { id } }
-    pub fn as_uuid(&self) -> &Uuid { &self.id }
-    pub fn into_uuid(self) -> Uuid { self.id }
+    pub fn new(id: Uuid) -> Self {
+        Self { id }
+    }
+    pub fn as_uuid(&self) -> &Uuid {
+        &self.id
+    }
+    pub fn into_uuid(self) -> Uuid {
+        self.id
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -158,9 +164,15 @@ pub struct VoiceSessionRef {
 }
 
 impl VoiceSessionRef {
-    pub fn new(id: Uuid) -> Self { Self { id } }
-    pub fn as_uuid(&self) -> &Uuid { &self.id }
-    pub fn into_uuid(self) -> Uuid { self.id }
+    pub fn new(id: Uuid) -> Self {
+        Self { id }
+    }
+    pub fn as_uuid(&self) -> &Uuid {
+        &self.id
+    }
+    pub fn into_uuid(self) -> Uuid {
+        self.id
+    }
 }
 
 #[derive(Debug, Clone)]

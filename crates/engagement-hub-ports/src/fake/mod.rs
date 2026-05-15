@@ -3,17 +3,17 @@
 //! Each fake uses a per-method response queue with injectable outcomes and is
 //! thread-safe via `Arc<Mutex<...>>`.
 
-pub mod registry;
-pub mod journey_manager;
-pub mod voice_manager;
-pub mod post_call;
 pub mod analytics;
+pub mod journey_manager;
+pub mod post_call;
+pub mod registry;
+pub mod voice_manager;
 
-pub use registry::FakeRegistryPort;
-pub use journey_manager::FakeJourneyManagerPort;
-pub use voice_manager::FakeVoiceManagerPort;
-pub use post_call::FakePostCallPort;
 pub use analytics::FakeAnalyticsPort;
+pub use journey_manager::FakeJourneyManagerPort;
+pub use post_call::FakePostCallPort;
+pub use registry::FakeRegistryPort;
+pub use voice_manager::FakeVoiceManagerPort;
 
 /// Injectable response type for fake port implementations.
 ///

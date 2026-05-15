@@ -5,12 +5,12 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
+use super::Outcome;
 use crate::{
     error::RegistryError,
     ports::RegistryPort,
     types::{ResolveSnapshotReq, ResolvedSnapshot, VoiceProfile, VoiceProfileId},
 };
-use super::Outcome;
 
 // ---------------------------------------------------------------------------
 // Inner state
@@ -41,11 +41,19 @@ impl FakeRegistryPort {
     }
 
     pub fn push_resolve_snapshot(&self, outcome: Outcome<ResolvedSnapshot>) {
-        self.inner.lock().unwrap().resolve_snapshot.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .resolve_snapshot
+            .push_back(outcome);
     }
 
     pub fn push_get_voice_profile(&self, outcome: Outcome<VoiceProfile>) {
-        self.inner.lock().unwrap().get_voice_profile.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_voice_profile
+            .push_back(outcome);
     }
 }
 
@@ -77,10 +85,7 @@ impl RegistryPort for FakeRegistryPort {
         }
     }
 
-    async fn get_voice_profile(
-        &self,
-        _id: &VoiceProfileId,
-    ) -> Result<VoiceProfile, RegistryError> {
+    async fn get_voice_profile(&self, _id: &VoiceProfileId) -> Result<VoiceProfile, RegistryError> {
         match self
             .inner
             .lock()
@@ -142,10 +147,9 @@ mod tests {
     async fn resolve_snapshot_panic() {
         let fake = FakeRegistryPort::new();
         fake.push_resolve_snapshot(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.resolve_snapshot(ResolveSnapshotReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.resolve_snapshot(ResolveSnapshotReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -181,10 +185,7 @@ mod tests {
         let fake = FakeRegistryPort::new();
         fake.push_get_voice_profile(Outcome::Panic);
         let id = VoiceProfileId::new();
-        let result = tokio::task::spawn(async move {
-            fake.get_voice_profile(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_voice_profile(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -208,10 +209,9 @@ mod tests {
     async fn test_resolve_snapshot_empty_queue_panics() {
         let fake = FakeRegistryPort::new();
         // Don't push anything
-        let result = tokio::task::spawn(async move {
-            fake.resolve_snapshot(ResolveSnapshotReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.resolve_snapshot(ResolveSnapshotReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 }

@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
+use super::Outcome;
 use crate::{
     error::PostCallError,
     ports::PostCallPort,
@@ -13,7 +14,6 @@ use crate::{
         Sentiment, Summary, Transcript,
     },
 };
-use super::Outcome;
 
 // ---------------------------------------------------------------------------
 // Inner state
@@ -64,15 +64,27 @@ impl FakePostCallPort {
     }
 
     pub fn push_get_output_extraction(&self, outcome: Outcome<OutputExtraction>) {
-        self.inner.lock().unwrap().get_output_extraction.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .get_output_extraction
+            .push_back(outcome);
     }
 
     pub fn push_list_agent_call_logs(&self, outcome: Outcome<Page<CallLog>>) {
-        self.inner.lock().unwrap().list_agent_call_logs.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .list_agent_call_logs
+            .push_back(outcome);
     }
 
     pub fn push_list_org_call_logs(&self, outcome: Outcome<Page<CallLog>>) {
-        self.inner.lock().unwrap().list_org_call_logs.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .list_org_call_logs
+            .push_back(outcome);
     }
 }
 
@@ -84,10 +96,7 @@ impl Default for FakePostCallPort {
 
 #[async_trait]
 impl PostCallPort for FakePostCallPort {
-    async fn get_transcript(
-        &self,
-        _eng: &EngagementId,
-    ) -> Result<Transcript, PostCallError> {
+    async fn get_transcript(&self, _eng: &EngagementId) -> Result<Transcript, PostCallError> {
         match self
             .inner
             .lock()
@@ -104,10 +113,7 @@ impl PostCallPort for FakePostCallPort {
         }
     }
 
-    async fn get_summary(
-        &self,
-        _eng: &EngagementId,
-    ) -> Result<Summary, PostCallError> {
+    async fn get_summary(&self, _eng: &EngagementId) -> Result<Summary, PostCallError> {
         match self
             .inner
             .lock()
@@ -124,10 +130,7 @@ impl PostCallPort for FakePostCallPort {
         }
     }
 
-    async fn get_sentiment(
-        &self,
-        _eng: &EngagementId,
-    ) -> Result<Sentiment, PostCallError> {
+    async fn get_sentiment(&self, _eng: &EngagementId) -> Result<Sentiment, PostCallError> {
         match self
             .inner
             .lock()
@@ -218,7 +221,10 @@ mod tests {
     }
 
     fn empty_page() -> Page<CallLog> {
-        Page { items: vec![], next_page_token: None }
+        Page {
+            items: vec![],
+            next_page_token: None,
+        }
     }
 
     // --- get_transcript ---
@@ -226,7 +232,9 @@ mod tests {
     #[tokio::test]
     async fn get_transcript_success() {
         let fake = FakePostCallPort::new();
-        fake.push_get_transcript(Outcome::Success(Transcript { text: "hello world".into() }));
+        fake.push_get_transcript(Outcome::Success(Transcript {
+            text: "hello world".into(),
+        }));
         let result = fake.get_transcript(&eng_id()).await.unwrap();
         assert_eq!(result.text, "hello world");
     }
@@ -260,10 +268,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_get_transcript(Outcome::Panic);
         let id = eng_id();
-        let result = tokio::task::spawn(async move {
-            fake.get_transcript(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_transcript(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -272,7 +277,9 @@ mod tests {
     #[tokio::test]
     async fn get_summary_success() {
         let fake = FakePostCallPort::new();
-        fake.push_get_summary(Outcome::Success(Summary { text: "summary text".into() }));
+        fake.push_get_summary(Outcome::Success(Summary {
+            text: "summary text".into(),
+        }));
         let result = fake.get_summary(&eng_id()).await.unwrap();
         assert_eq!(result.text, "summary text");
     }
@@ -298,10 +305,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_get_summary(Outcome::Panic);
         let id = eng_id();
-        let result = tokio::task::spawn(async move {
-            fake.get_summary(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_summary(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -336,10 +340,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_get_sentiment(Outcome::Panic);
         let id = eng_id();
-        let result = tokio::task::spawn(async move {
-            fake.get_sentiment(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_sentiment(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -374,10 +375,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         fake.push_get_output_extraction(Outcome::Panic);
         let id = eng_id();
-        let result = tokio::task::spawn(async move {
-            fake.get_output_extraction(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_output_extraction(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -411,10 +409,11 @@ mod tests {
     async fn list_agent_call_logs_panic() {
         let fake = FakePostCallPort::new();
         fake.push_list_agent_call_logs(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.list_agent_call_logs(ListAgentCallLogsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.list_agent_call_logs(ListAgentCallLogsReq {}).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -448,10 +447,9 @@ mod tests {
     async fn list_org_call_logs_panic() {
         let fake = FakePostCallPort::new();
         fake.push_list_org_call_logs(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.list_org_call_logs(ListOrgCallLogsReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.list_org_call_logs(ListOrgCallLogsReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -476,10 +474,7 @@ mod tests {
         let fake = FakePostCallPort::new();
         // Don't push anything
         let id = eng_id();
-        let result = tokio::task::spawn(async move {
-            fake.get_transcript(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_transcript(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 }

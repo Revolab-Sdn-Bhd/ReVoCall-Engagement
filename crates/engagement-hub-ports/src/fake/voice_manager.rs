@@ -5,15 +5,15 @@ use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 
+use super::Outcome;
 use crate::{
     error::VmError,
     ports::VoiceManagerPort,
     types::{
-        CreateTelephonyReq, IssueTestTokenReq, ListTelephoniesReq, StartVoiceSessionReq,
-        StopMode, Telephony, TelephonyId, TestToken, UpdateTelephonyReq, VoiceSessionRef,
+        CreateTelephonyReq, IssueTestTokenReq, ListTelephoniesReq, StartVoiceSessionReq, StopMode,
+        Telephony, TelephonyId, TestToken, UpdateTelephonyReq, VoiceSessionRef,
     },
 };
-use super::Outcome;
 
 // ---------------------------------------------------------------------------
 // Inner state
@@ -56,23 +56,43 @@ impl FakeVoiceManagerPort {
     }
 
     pub fn push_start_voice_session(&self, outcome: Outcome<VoiceSessionRef>) {
-        self.inner.lock().unwrap().start_voice_session.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .start_voice_session
+            .push_back(outcome);
     }
 
     pub fn push_stop_voice_session(&self, outcome: Outcome<()>) {
-        self.inner.lock().unwrap().stop_voice_session.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .stop_voice_session
+            .push_back(outcome);
     }
 
     pub fn push_issue_test_token(&self, outcome: Outcome<TestToken>) {
-        self.inner.lock().unwrap().issue_test_token.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .issue_test_token
+            .push_back(outcome);
     }
 
     pub fn push_create_telephony(&self, outcome: Outcome<Telephony>) {
-        self.inner.lock().unwrap().create_telephony.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .create_telephony
+            .push_back(outcome);
     }
 
     pub fn push_list_telephonies(&self, outcome: Outcome<Vec<Telephony>>) {
-        self.inner.lock().unwrap().list_telephonies.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .list_telephonies
+            .push_back(outcome);
     }
 
     pub fn push_get_telephony(&self, outcome: Outcome<Telephony>) {
@@ -80,11 +100,19 @@ impl FakeVoiceManagerPort {
     }
 
     pub fn push_update_telephony(&self, outcome: Outcome<Telephony>) {
-        self.inner.lock().unwrap().update_telephony.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .update_telephony
+            .push_back(outcome);
     }
 
     pub fn push_delete_telephony(&self, outcome: Outcome<()>) {
-        self.inner.lock().unwrap().delete_telephony.push_back(outcome);
+        self.inner
+            .lock()
+            .unwrap()
+            .delete_telephony
+            .push_back(outcome);
     }
 }
 
@@ -137,10 +165,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
         }
     }
 
-    async fn issue_test_token(
-        &self,
-        _req: IssueTestTokenReq,
-    ) -> Result<TestToken, VmError> {
+    async fn issue_test_token(&self, _req: IssueTestTokenReq) -> Result<TestToken, VmError> {
         match self
             .inner
             .lock()
@@ -157,10 +182,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
         }
     }
 
-    async fn create_telephony(
-        &self,
-        _req: CreateTelephonyReq,
-    ) -> Result<Telephony, VmError> {
+    async fn create_telephony(&self, _req: CreateTelephonyReq) -> Result<Telephony, VmError> {
         match self
             .inner
             .lock()
@@ -177,10 +199,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
         }
     }
 
-    async fn list_telephonies(
-        &self,
-        _req: ListTelephoniesReq,
-    ) -> Result<Vec<Telephony>, VmError> {
+    async fn list_telephonies(&self, _req: ListTelephoniesReq) -> Result<Vec<Telephony>, VmError> {
         match self
             .inner
             .lock()
@@ -197,10 +216,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
         }
     }
 
-    async fn get_telephony(
-        &self,
-        _id: &TelephonyId,
-    ) -> Result<Telephony, VmError> {
+    async fn get_telephony(&self, _id: &TelephonyId) -> Result<Telephony, VmError> {
         match self
             .inner
             .lock()
@@ -217,10 +233,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
         }
     }
 
-    async fn update_telephony(
-        &self,
-        _req: UpdateTelephonyReq,
-    ) -> Result<Telephony, VmError> {
+    async fn update_telephony(&self, _req: UpdateTelephonyReq) -> Result<Telephony, VmError> {
         match self
             .inner
             .lock()
@@ -237,11 +250,7 @@ impl VoiceManagerPort for FakeVoiceManagerPort {
         }
     }
 
-    async fn delete_telephony(
-        &self,
-        _id: &TelephonyId,
-        _usage: &str,
-    ) -> Result<(), VmError> {
+    async fn delete_telephony(&self, _id: &TelephonyId, _usage: &str) -> Result<(), VmError> {
         match self
             .inner
             .lock()
@@ -273,7 +282,9 @@ mod tests {
     }
 
     fn telephony() -> Telephony {
-        Telephony { id: TelephonyId::new() }
+        Telephony {
+            id: TelephonyId::new(),
+        }
     }
 
     // --- start_voice_session ---
@@ -283,7 +294,10 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         let id = Uuid::new_v4();
         fake.push_start_voice_session(Outcome::Success(VoiceSessionRef::new(id)));
-        let result = fake.start_voice_session(StartVoiceSessionReq {}).await.unwrap();
+        let result = fake
+            .start_voice_session(StartVoiceSessionReq {})
+            .await
+            .unwrap();
         assert_eq!(result.as_uuid(), &id);
     }
 
@@ -315,10 +329,11 @@ mod tests {
     async fn start_voice_session_panic() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_start_voice_session(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.start_voice_session(StartVoiceSessionReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.start_voice_session(StartVoiceSessionReq {}).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -356,10 +371,11 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_stop_voice_session(Outcome::Panic);
         let ref_ = session_ref();
-        let result = tokio::task::spawn(async move {
-            fake.stop_voice_session(&ref_, StopMode::Graceful).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.stop_voice_session(&ref_, StopMode::Graceful).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -368,7 +384,9 @@ mod tests {
     #[tokio::test]
     async fn issue_test_token_success() {
         let fake = FakeVoiceManagerPort::new();
-        fake.push_issue_test_token(Outcome::Success(TestToken { token: "tok123".into() }));
+        fake.push_issue_test_token(Outcome::Success(TestToken {
+            token: "tok123".into(),
+        }));
         let result = fake.issue_test_token(IssueTestTokenReq {}).await.unwrap();
         assert_eq!(result.token, "tok123");
     }
@@ -393,10 +411,9 @@ mod tests {
     async fn issue_test_token_panic() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_issue_test_token(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.issue_test_token(IssueTestTokenReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.issue_test_token(IssueTestTokenReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -406,7 +423,9 @@ mod tests {
     async fn create_telephony_success() {
         let fake = FakeVoiceManagerPort::new();
         let expected_id = TelephonyId::new();
-        fake.push_create_telephony(Outcome::Success(Telephony { id: expected_id.clone() }));
+        fake.push_create_telephony(Outcome::Success(Telephony {
+            id: expected_id.clone(),
+        }));
         let result = fake.create_telephony(CreateTelephonyReq {}).await.unwrap();
         assert_eq!(result.id, expected_id);
     }
@@ -431,10 +450,9 @@ mod tests {
     async fn create_telephony_panic() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_create_telephony(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.create_telephony(CreateTelephonyReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.create_telephony(CreateTelephonyReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -468,10 +486,9 @@ mod tests {
     async fn list_telephonies_panic() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_list_telephonies(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.list_telephonies(ListTelephoniesReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.list_telephonies(ListTelephoniesReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -481,7 +498,9 @@ mod tests {
     async fn get_telephony_success() {
         let fake = FakeVoiceManagerPort::new();
         let expected_id = TelephonyId::new();
-        fake.push_get_telephony(Outcome::Success(Telephony { id: expected_id.clone() }));
+        fake.push_get_telephony(Outcome::Success(Telephony {
+            id: expected_id.clone(),
+        }));
         let lookup_id = TelephonyId::new();
         let result = fake.get_telephony(&lookup_id).await.unwrap();
         assert_eq!(result.id, expected_id);
@@ -510,10 +529,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_get_telephony(Outcome::Panic);
         let id = TelephonyId::new();
-        let result = tokio::task::spawn(async move {
-            fake.get_telephony(&id).await
-        })
-        .await;
+        let result = tokio::task::spawn(async move { fake.get_telephony(&id).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -523,7 +539,9 @@ mod tests {
     async fn update_telephony_success() {
         let fake = FakeVoiceManagerPort::new();
         let expected_id = TelephonyId::new();
-        fake.push_update_telephony(Outcome::Success(Telephony { id: expected_id.clone() }));
+        fake.push_update_telephony(Outcome::Success(Telephony {
+            id: expected_id.clone(),
+        }));
         let result = fake.update_telephony(UpdateTelephonyReq {}).await.unwrap();
         assert_eq!(result.id, expected_id);
     }
@@ -548,10 +566,9 @@ mod tests {
     async fn update_telephony_panic() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_update_telephony(Outcome::Panic);
-        let result = tokio::task::spawn(async move {
-            fake.update_telephony(UpdateTelephonyReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.update_telephony(UpdateTelephonyReq {}).await })
+                .await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -589,10 +606,8 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_delete_telephony(Outcome::Panic);
         let id = TelephonyId::new();
-        let result = tokio::task::spawn(async move {
-            fake.delete_telephony(&id, "none").await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(async move { fake.delete_telephony(&id, "none").await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -616,10 +631,11 @@ mod tests {
     async fn test_start_voice_session_empty_queue_panics() {
         let fake = FakeVoiceManagerPort::new();
         // Don't push anything
-        let result = tokio::task::spawn(async move {
-            fake.start_voice_session(StartVoiceSessionReq {}).await
-        })
-        .await;
+        let result =
+            tokio::task::spawn(
+                async move { fake.start_voice_session(StartVoiceSessionReq {}).await },
+            )
+            .await;
         assert!(result.unwrap_err().is_panic());
     }
 }
