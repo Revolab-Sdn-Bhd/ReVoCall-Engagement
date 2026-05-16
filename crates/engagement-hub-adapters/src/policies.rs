@@ -88,6 +88,10 @@ where
     E: IsRetryable + FromPanic + Send + 'static,
     T: Send + 'static,
 {
+    debug_assert!(
+        config.max_attempts > 0,
+        "RetryConfig::max_attempts must be > 0"
+    );
     let mut backoff = config.initial_backoff;
     for attempt in 0..config.max_attempts {
         let result = AssertUnwindSafe(f())
