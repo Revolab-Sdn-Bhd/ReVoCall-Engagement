@@ -20,7 +20,7 @@ pub struct Metrics {
     pub audit_insert_failures_total: IntCounter,
     pub listen_notify_reconnects_total: IntCounter,
     pub db_failover_detected_total: IntCounter,
-    // --- Histograms ---
+    // --- Histograms --- (9 of 10 per PRD §10.4; listen_notify_consumer_lag_events deferred to T1-09)
     pub rpc_duration_seconds: HistogramVec,
     pub adapter_duration_seconds: HistogramVec,
     pub orchestration_duration_seconds: HistogramVec,
@@ -34,8 +34,8 @@ pub struct Metrics {
     pub active_engagements: IntGaugeVec,
     pub active_watches: IntGaugeVec,
     pub in_flight_invocations: IntGauge,
-    pub db_pool_in_use: IntGauge,
-    pub db_pool_idle: IntGauge,
+    pub db_pool_in_use: IntGauge,   // driven by pool observer task — TODO: assign to a T1 story
+    pub db_pool_idle: IntGauge,     // driven by pool observer task — TODO: assign to a T1 story
     pub reconciler_backlog: IntGaugeVec,
 }
 
@@ -66,6 +66,12 @@ impl Metrics {
             &["exporter"],
         )?;
         registry.register(Box::new(otel_exporter_dropped_spans.clone()))?;
+        // Pre-initialization policy: metrics with a STATIC, CLOSED label domain are
+        // pre-seeded here so all series appear at zero on first scrape (avoids "No data"
+        // in Grafana panels and keeps `absent()`-based alerts working from t=0).
+        // Metrics with RUNTIME-DRIVEN labels (rpc, code, caller_service, channel, mode,
+        // terminal_status, error_code, outcome, etc.) are NOT pre-seeded; they appear
+        // on first emission from T1 call sites.
         // Pre-initialize all three so they appear in metrics output at zero
         for name in ["grafana", "langfuse", "local"] {
             otel_exporter_dropped_spans.with_label_values(&[name]);
@@ -135,6 +141,8 @@ impl Metrics {
             ),
             &["target", "method", "attempt_number"],
         )?;
+        // CARDINALITY: attempt_number must be clamped at T1 call sites (e.g. min(n, 10).to_string()
+        // or bucketed as "1"/"2"/"3+") — an unbounded integer label is a TSDB footgun.
         registry.register(Box::new(adapter_retries_total.clone()))?;
 
         let saga_compensation_outcome_total = IntCounterVec::new(
@@ -164,7 +172,7 @@ impl Metrics {
         )?;
         registry.register(Box::new(db_failover_detected_total.clone()))?;
 
-        // --- Histograms ---
+        // --- Histograms --- (9 of 10 per PRD §10.4; listen_notify_consumer_lag_events deferred to T1-09)
         let rpc_duration_seconds = HistogramVec::new(
             HistogramOpts::new(
                 "engagementhub_rpc_duration_seconds",
@@ -208,7 +216,7 @@ impl Metrics {
                 "engagementhub_startup_duration_seconds",
                 "StartEngagement per-stage duration in seconds",
             )
-            .buckets(vec![0.001, 0.010, 0.050, 0.100, 0.500, 1.0, 5.0]),
+            .buckets(vec![0.001, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 5.0]),
             &["stage"],
         )?;
         registry.register(Box::new(startup_duration_seconds.clone()))?;
@@ -240,7 +248,7 @@ impl Metrics {
                 "engagementhub_time_to_first_response_seconds",
                 "Time from engagement start to first AI response in seconds",
             )
-            .buckets(vec![0.100, 0.250, 0.500, 1.0, 2.0, 5.0, 10.0, 30.0]),
+            .buckets(vec![0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.0, 5.0, 10.0, 30.0]),
         )?;
         registry.register(Box::new(time_to_first_response_seconds.clone()))?;
 
@@ -529,10 +537,71 @@ mod tests {
     #[test]
     fn no_organization_id_label() {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        // Scan gather_text() for any emitted series that carry the label
         let text = m.gather_text().unwrap();
         assert!(
             !text.contains("organization_id"),
-            "organization_id found as Prometheus label — high-cardinality footgun!\n\nfull output:\n{text}"
+            "organization_id found in emitted series — high-cardinality footgun!\n\nfull output:\n{text}"
+        );
+        // Also scan metric family descriptors directly so Vec metrics that were
+        // never touched (empty families omitted from gather) are still checked.
+        for fam in m.registry.gather() {
+            for metric in fam.get_metric() {
+                for lp in metric.get_label() {
+                    assert_ne!(
+                        lp.get_name(),
+                        "organization_id",
+                        "organization_id found as label on metric family '{}' — high-cardinality footgun!",
+                        fam.get_name()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn histogram_buckets_match_design() {
+        let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
+        // Touch labeled histograms so their families appear
+        m.rpc_duration_seconds.with_label_values(&["_", "_"]);
+        m.adapter_duration_seconds.with_label_values(&["_", "_", "_"]);
+        m.call_duration_seconds.with_label_values(&["_"]);
+        let text = m.gather_text().unwrap();
+
+        // rpc_duration_seconds: spot-check 0.005 and 5.0 boundaries
+        assert!(
+            text.contains(r#"engagementhub_rpc_duration_seconds_bucket{code="_",rpc="_",le="0.005"}"#),
+            "rpc_duration_seconds missing le=0.005 bucket\n\nfull output:\n{text}"
+        );
+        assert!(
+            text.contains(r#"engagementhub_rpc_duration_seconds_bucket{code="_",rpc="_",le="5"}"#),
+            "rpc_duration_seconds missing le=5 bucket\n\nfull output:\n{text}"
+        );
+
+        // call_duration_seconds: spot-check 5.0 and 3600.0 boundaries (voice-call range)
+        assert!(
+            text.contains(r#"engagementhub_call_duration_seconds_bucket{outcome="_",le="5"}"#),
+            "call_duration_seconds missing le=5 bucket\n\nfull output:\n{text}"
+        );
+        assert!(
+            text.contains(r#"engagementhub_call_duration_seconds_bucket{outcome="_",le="3600"}"#),
+            "call_duration_seconds missing le=3600 bucket\n\nfull output:\n{text}"
+        );
+
+        // audit_insert_duration_seconds: spot-check 0.001 (fastest expected) and 0.5 (ceiling)
+        assert!(
+            text.contains(r#"engagementhub_audit_insert_duration_seconds_bucket{le="0.001"}"#),
+            "audit_insert_duration_seconds missing le=0.001 bucket\n\nfull output:\n{text}"
+        );
+        assert!(
+            text.contains(r#"engagementhub_audit_insert_duration_seconds_bucket{le="0.5"}"#),
+            "audit_insert_duration_seconds missing le=0.5 bucket\n\nfull output:\n{text}"
+        );
+
+        // watch_stream_duration_seconds: spot-check 86400 (24h ceiling)
+        assert!(
+            text.contains(r#"engagementhub_watch_stream_duration_seconds_bucket{le="86400"}"#),
+            "watch_stream_duration_seconds missing le=86400 bucket\n\nfull output:\n{text}"
         );
     }
 
