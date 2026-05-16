@@ -64,9 +64,8 @@ impl DeadlineContext {
 
     /// True if remaining time is below the 200ms safety floor.
     pub fn is_too_close(&self) -> bool {
-        self.deadline.map_or(false, |d| {
-            d.saturating_duration_since(Instant::now()) < ADAPTER_FLOOR
-        })
+        self.deadline
+            .is_some_and(|d| d.saturating_duration_since(Instant::now()) < ADAPTER_FLOOR)
     }
 }
 
