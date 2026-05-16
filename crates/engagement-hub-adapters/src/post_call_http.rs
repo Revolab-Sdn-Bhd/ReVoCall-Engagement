@@ -243,61 +243,69 @@ impl PostCallPort for PostCallHttpAdapter {
         &self,
         req: ListAgentCallLogsReq,
     ) -> Result<Page<CallLog>, PostCallError> {
-        let mut params = vec![];
+        let base_url = format!("{}/calls/{}/history-call", self.base_url, req.agent_id);
+        let mut qp: Vec<(&str, String)> = vec![];
         if let Some(v) = req.skip {
-            params.push(format!("skip={v}"))
+            qp.push(("skip", v.to_string()))
         }
         if let Some(v) = req.limit {
-            params.push(format!("limit={v}"))
+            qp.push(("limit", v.to_string()))
         }
-        if let Some(v) = &req.start_date {
-            params.push(format!("start_date={v}"))
+        if let Some(v) = req.start_date {
+            qp.push(("start_date", v))
         }
-        if let Some(v) = &req.end_date {
-            params.push(format!("end_date={v}"))
+        if let Some(v) = req.end_date {
+            qp.push(("end_date", v))
         }
-        if let Some(v) = &req.identity {
-            params.push(format!("identity={v}"))
+        if let Some(v) = req.identity {
+            qp.push(("identity", v))
         }
-        if let Some(v) = &req.id {
-            params.push(format!("id={v}"))
+        if let Some(v) = req.id {
+            qp.push(("id", v))
         }
-        if let Some(v) = &req.batch_id {
-            params.push(format!("batch_id={v}"))
+        if let Some(v) = req.batch_id {
+            qp.push(("batch_id", v))
         }
-        let qs = if params.is_empty() {
-            String::new()
-        } else {
-            format!("?{}", params.join("&"))
-        };
-        let url = format!(
-            "{}/calls/{}/history-call{}",
-            self.base_url, req.agent_id, qs
-        );
         let client = self.client.clone();
         let m = self.metrics.clone();
         with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
             let c = client.clone();
-            let u = url.clone();
+            let base = base_url.clone();
+            let params = qp.clone();
             async move {
-                let r: CallLogListResp = get_json(&c, &u).await?;
-                Ok(Page {
-                    items: r
-                        .data
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|l| CallLog {
-                            id: l.id,
-                            room_name: l.room_name,
-                            batch_id: l.batch_id,
-                            duration: l.duration,
-                            identity: l.identity,
-                            created_at: l.created_at,
-                        })
-                        .collect(),
-                    total_size: r.total_size,
-                    next_page_token: None,
-                })
+                let resp = c
+                    .get(&base)
+                    .query(&params)
+                    .send()
+                    .await
+                    .map_err(|e| PostCallError::Transient(e.to_string()))?;
+                if resp.status().is_success() {
+                    let r: CallLogListResp = resp
+                        .json()
+                        .await
+                        .map_err(|e| PostCallError::Permanent(e.to_string()))?;
+                    Ok(Page {
+                        items: r
+                            .data
+                            .unwrap_or_default()
+                            .into_iter()
+                            .map(|l| CallLog {
+                                id: l.id,
+                                room_name: l.room_name,
+                                batch_id: l.batch_id,
+                                duration: l.duration,
+                                identity: l.identity,
+                                created_at: l.created_at,
+                            })
+                            .collect(),
+                        total_size: r.total_size,
+                        next_page_token: None,
+                    })
+                } else {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    Err(map_http_status(status, &body))
+                }
             }
         })
         .await
