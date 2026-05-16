@@ -32,6 +32,40 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Lint adapter panic safety
+        run: |
+          python3 - <<'EOF'
+          import sys, pathlib, re
+
+          src = pathlib.Path("crates/engagement-hub-adapters/src")
+          exclude = {"policies.rs"}
+          panic_re = re.compile(r'\.(unwrap\(\)|expect\()')
+          violations = []
+
+          for f in sorted(src.glob("*.rs")):
+              if f.name in exclude:
+                  continue
+              in_test_block = 0
+              for lineno, raw in enumerate(f.read_text().splitlines(), 1):
+                  line = raw.strip()
+                  # treat cfg(test), test attrs, and test-helper fns as test context
+                  if re.search(r'#\[cfg\(test\)\]|#\[tokio::test\]|#\[test\]|fn for_test\b', line):
+                      in_test_block += 1
+                  if in_test_block == 0 and panic_re.search(line):
+                      violations.append(f"{f}:{lineno}: {raw.rstrip()}")
+                  # crude brace counting to track test block exit
+                  if in_test_block > 0:
+                      in_test_block += line.count('{') - line.count('}')
+                      if in_test_block < 0:
+                          in_test_block = 0
+
+          if violations:
+              print("ERROR: .unwrap() or .expect() found in adapter production code (outside test blocks):")
+              for v in violations:
+                  print(v)
+              sys.exit(1)
+          print(f"Panic safety OK — scanned {len(list(src.glob('*.rs'))) - len(exclude)} files")
+          EOF
 
   sqlfluff:
     runs-on: ubuntu-latest
