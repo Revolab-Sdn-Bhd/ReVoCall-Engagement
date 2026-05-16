@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -11,7 +12,6 @@ use engagement_hub_ports::{
 };
 use reqwest::{Client, StatusCode};
 use serde::Deserialize;
-use std::collections::HashMap;
 
 use crate::{
     metrics::AdapterMetrics,
@@ -59,52 +59,6 @@ fn map_http_status(status: StatusCode, body: &str) -> AnalyticsError {
     }
 }
 
-async fn get_json<T: for<'de> Deserialize<'de>>(
-    client: &Client,
-    url: &str,
-) -> Result<T, AnalyticsError> {
-    let resp = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| AnalyticsError::Transient(e.to_string()))?;
-    if resp.status().is_success() {
-        resp.json::<T>()
-            .await
-            .map_err(|e| AnalyticsError::Permanent(e.to_string()))
-    } else {
-        let status = resp.status();
-        let body = resp.text().await.unwrap_or_default();
-        Err(map_http_status(status, &body))
-    }
-}
-
-fn build_analytics_qs(
-    metric: &Option<String>,
-    granularity: &Option<String>,
-    start: &Option<String>,
-    end: &Option<String>,
-) -> String {
-    let mut params = vec![];
-    if let Some(v) = metric {
-        params.push(format!("metric={v}"))
-    }
-    if let Some(v) = granularity {
-        params.push(format!("granularity={v}"))
-    }
-    if let Some(v) = start {
-        params.push(format!("startDate={v}"))
-    }
-    if let Some(v) = end {
-        params.push(format!("endDate={v}"))
-    }
-    if params.is_empty() {
-        String::new()
-    } else {
-        format!("?{}", params.join("&"))
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Adapter
 // ---------------------------------------------------------------------------
@@ -131,59 +85,99 @@ impl AnalyticsPort for AnalyticsHttpAdapter {
         &self,
         req: GetAgentAnalyticsReq,
     ) -> Result<Analytics, AnalyticsError> {
-        let qs = build_analytics_qs(
-            &req.metric,
-            &req.granularity,
-            &req.start_date,
-            &req.end_date,
-        );
-        let url = format!(
-            "{}/calls/agents/{}/analytics{}",
-            self.base_url, req.agent_id, qs
-        );
+        let base = format!("{}/calls/agents/{}/analytics", self.base_url, req.agent_id);
+        let mut qp: Vec<(&str, String)> = vec![];
+        if let Some(v) = req.metric {
+            qp.push(("metric", v))
+        }
+        if let Some(v) = req.granularity {
+            qp.push(("granularity", v))
+        }
+        if let Some(v) = req.start_date {
+            qp.push(("startDate", v))
+        }
+        if let Some(v) = req.end_date {
+            qp.push(("endDate", v))
+        }
         let client = self.client.clone();
         let m = self.metrics.clone();
         with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
             let c = client.clone();
-            let u = url.clone();
+            let b = base.clone();
+            let params = qp.clone();
             async move {
-                let r: AnalyticsResp = get_json(&c, &u).await?;
-                Ok(Analytics {
-                    average_conversation_duration: r.average_conversation_duration,
-                    containment_rate: r.containment_rate,
-                    customer_satisfaction_rate: r.customer_satisfaction_rate,
-                    dropoff_rate: r.dropoff_rate,
-                    escalation_rate: r.escalation_rate,
-                    total_inquiries: r.total_inquiries,
-                    category_counts: r.category_counts,
-                })
+                let resp = c
+                    .get(&b)
+                    .query(&params)
+                    .send()
+                    .await
+                    .map_err(|e| AnalyticsError::Transient(e.to_string()))?;
+                if resp.status().is_success() {
+                    let r: AnalyticsResp = resp
+                        .json()
+                        .await
+                        .map_err(|e| AnalyticsError::Permanent(e.to_string()))?;
+                    Ok(Analytics {
+                        average_conversation_duration: r.average_conversation_duration,
+                        containment_rate: r.containment_rate,
+                        customer_satisfaction_rate: r.customer_satisfaction_rate,
+                        dropoff_rate: r.dropoff_rate,
+                        escalation_rate: r.escalation_rate,
+                        total_inquiries: r.total_inquiries,
+                        category_counts: r.category_counts,
+                    })
+                } else {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    Err(map_http_status(status, &body))
+                }
             }
         })
         .await
     }
 
     async fn get_agent_metrics(&self, req: GetAgentMetricsReq) -> Result<Metrics, AnalyticsError> {
-        let qs = build_analytics_qs(
-            &req.metric,
-            &req.granularity,
-            &req.start_date,
-            &req.end_date,
-        );
-        let url = format!(
-            "{}/calls/agents/{}/metrics{}",
-            self.base_url, req.agent_id, qs
-        );
+        let base = format!("{}/calls/agents/{}/metrics", self.base_url, req.agent_id);
+        let mut qp: Vec<(&str, String)> = vec![];
+        if let Some(v) = req.metric {
+            qp.push(("metric", v))
+        }
+        if let Some(v) = req.granularity {
+            qp.push(("granularity", v))
+        }
+        if let Some(v) = req.start_date {
+            qp.push(("startDate", v))
+        }
+        if let Some(v) = req.end_date {
+            qp.push(("endDate", v))
+        }
         let client = self.client.clone();
         let m = self.metrics.clone();
         with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
             let c = client.clone();
-            let u = url.clone();
+            let b = base.clone();
+            let params = qp.clone();
             async move {
-                let r: MetricsResp = get_json(&c, &u).await?;
-                Ok(Metrics {
-                    categories: r.data.categories,
-                    series: r.data.series,
-                })
+                let resp = c
+                    .get(&b)
+                    .query(&params)
+                    .send()
+                    .await
+                    .map_err(|e| AnalyticsError::Transient(e.to_string()))?;
+                if resp.status().is_success() {
+                    let r: MetricsResp = resp
+                        .json()
+                        .await
+                        .map_err(|e| AnalyticsError::Permanent(e.to_string()))?;
+                    Ok(Metrics {
+                        categories: r.data.categories,
+                        series: r.data.series,
+                    })
+                } else {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    Err(map_http_status(status, &body))
+                }
             }
         })
         .await
@@ -193,59 +187,105 @@ impl AnalyticsPort for AnalyticsHttpAdapter {
         &self,
         req: GetOrgAnalyticsReq,
     ) -> Result<Analytics, AnalyticsError> {
-        let qs = build_analytics_qs(
-            &req.metric,
-            &req.granularity,
-            &req.start_date,
-            &req.end_date,
+        let base = format!(
+            "{}/calls/organizations/{}/analytics",
+            self.base_url, req.org_id
         );
-        let url = format!(
-            "{}/calls/organizations/{}/analytics{}",
-            self.base_url, req.org_id, qs
-        );
+        let mut qp: Vec<(&str, String)> = vec![];
+        if let Some(v) = req.metric {
+            qp.push(("metric", v))
+        }
+        if let Some(v) = req.granularity {
+            qp.push(("granularity", v))
+        }
+        if let Some(v) = req.start_date {
+            qp.push(("startDate", v))
+        }
+        if let Some(v) = req.end_date {
+            qp.push(("endDate", v))
+        }
         let client = self.client.clone();
         let m = self.metrics.clone();
         with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
             let c = client.clone();
-            let u = url.clone();
+            let b = base.clone();
+            let params = qp.clone();
             async move {
-                let r: AnalyticsResp = get_json(&c, &u).await?;
-                Ok(Analytics {
-                    average_conversation_duration: r.average_conversation_duration,
-                    containment_rate: r.containment_rate,
-                    customer_satisfaction_rate: r.customer_satisfaction_rate,
-                    dropoff_rate: r.dropoff_rate,
-                    escalation_rate: r.escalation_rate,
-                    total_inquiries: r.total_inquiries,
-                    category_counts: r.category_counts,
-                })
+                let resp = c
+                    .get(&b)
+                    .query(&params)
+                    .send()
+                    .await
+                    .map_err(|e| AnalyticsError::Transient(e.to_string()))?;
+                if resp.status().is_success() {
+                    let r: AnalyticsResp = resp
+                        .json()
+                        .await
+                        .map_err(|e| AnalyticsError::Permanent(e.to_string()))?;
+                    Ok(Analytics {
+                        average_conversation_duration: r.average_conversation_duration,
+                        containment_rate: r.containment_rate,
+                        customer_satisfaction_rate: r.customer_satisfaction_rate,
+                        dropoff_rate: r.dropoff_rate,
+                        escalation_rate: r.escalation_rate,
+                        total_inquiries: r.total_inquiries,
+                        category_counts: r.category_counts,
+                    })
+                } else {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    Err(map_http_status(status, &body))
+                }
             }
         })
         .await
     }
 
     async fn get_org_metrics(&self, req: GetOrgMetricsReq) -> Result<Metrics, AnalyticsError> {
-        let qs = build_analytics_qs(
-            &req.metric,
-            &req.granularity,
-            &req.start_date,
-            &req.end_date,
+        let base = format!(
+            "{}/calls/organizations/{}/metrics",
+            self.base_url, req.org_id
         );
-        let url = format!(
-            "{}/calls/organizations/{}/metrics{}",
-            self.base_url, req.org_id, qs
-        );
+        let mut qp: Vec<(&str, String)> = vec![];
+        if let Some(v) = req.metric {
+            qp.push(("metric", v))
+        }
+        if let Some(v) = req.granularity {
+            qp.push(("granularity", v))
+        }
+        if let Some(v) = req.start_date {
+            qp.push(("startDate", v))
+        }
+        if let Some(v) = req.end_date {
+            qp.push(("endDate", v))
+        }
         let client = self.client.clone();
         let m = self.metrics.clone();
         with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
             let c = client.clone();
-            let u = url.clone();
+            let b = base.clone();
+            let params = qp.clone();
             async move {
-                let r: MetricsResp = get_json(&c, &u).await?;
-                Ok(Metrics {
-                    categories: r.data.categories,
-                    series: r.data.series,
-                })
+                let resp = c
+                    .get(&b)
+                    .query(&params)
+                    .send()
+                    .await
+                    .map_err(|e| AnalyticsError::Transient(e.to_string()))?;
+                if resp.status().is_success() {
+                    let r: MetricsResp = resp
+                        .json()
+                        .await
+                        .map_err(|e| AnalyticsError::Permanent(e.to_string()))?;
+                    Ok(Metrics {
+                        categories: r.data.categories,
+                        series: r.data.series,
+                    })
+                } else {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    Err(map_http_status(status, &body))
+                }
             }
         })
         .await
