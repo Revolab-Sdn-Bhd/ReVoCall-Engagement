@@ -20,11 +20,21 @@ use proto::registry_client::RegistryClient;
 
 fn map_status(s: tonic::Status) -> RegistryError {
     match s.code() {
-        Code::NotFound | Code::InvalidArgument | Code::FailedPrecondition | Code::AlreadyExists => {
-            RegistryError::Permanent(s.message().to_owned())
-        }
+        // permanent — business or auth errors, never worth retrying
+        Code::NotFound
+        | Code::InvalidArgument
+        | Code::FailedPrecondition
+        | Code::AlreadyExists
+        | Code::PermissionDenied
+        | Code::Unauthenticated
+        | Code::Unimplemented
+        | Code::OutOfRange
+        | Code::Cancelled => RegistryError::Permanent(format!("{:?}: {}", s.code(), s.message())),
+        // dedicated unavailable variant (retried by IsRetryable)
         Code::Unavailable => RegistryError::Unavailable,
-        _ => RegistryError::Transient(format!("{}: {}", s.code(), s.message())),
+        // transient — spec says retry on DEADLINE_EXCEEDED, ABORTED, INTERNAL
+        // ResourceExhausted and Unknown also get one retry
+        _ => RegistryError::Transient(format!("{:?}: {}", s.code(), s.message())),
     }
 }
 
@@ -231,11 +241,8 @@ mod tests {
             })
             .await
             .expect_err("fail");
-        // After exhausting 5 retries on Unavailable, returns Unavailable or Transient
-        assert!(matches!(
-            err,
-            RegistryError::Unavailable | RegistryError::Transient(_)
-        ));
+        // After exhausting retries on Unavailable, must map to Unavailable (never Transient)
+        assert!(matches!(err, RegistryError::Unavailable));
     }
 
     #[tokio::test]
@@ -255,5 +262,23 @@ mod tests {
             .await
             .expect("ok");
         assert_eq!(vp.name, "grpc-bot");
+    }
+
+    #[tokio::test]
+    async fn permission_denied_maps_to_permanent() {
+        let mock = MockRegistry {
+            snap_result: Mutex::new(Err(Status::permission_denied("not allowed"))),
+            profile_result: Mutex::new(Err(Status::not_found("n/a"))),
+        };
+        let adapter =
+            RegistryGrpcAdapter::new(start_server(mock).await, AdapterMetrics::for_test());
+        let err = adapter
+            .resolve_snapshot(ResolveSnapshotReq {
+                org_id: "o1".into(),
+                journey_version: "v1".into(),
+            })
+            .await
+            .expect_err("fail");
+        assert!(matches!(err, RegistryError::Permanent(_)));
     }
 }
