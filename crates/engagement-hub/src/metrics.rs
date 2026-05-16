@@ -1,5 +1,8 @@
 use anyhow::Result;
-use prometheus::{Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Opts, Registry};
+use prometheus::{
+    Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Opts,
+    Registry,
+};
 
 use crate::config::{Env, RegistryAdapter};
 
@@ -34,8 +37,8 @@ pub struct Metrics {
     pub active_engagements: IntGaugeVec,
     pub active_watches: IntGaugeVec,
     pub in_flight_invocations: IntGauge,
-    pub db_pool_in_use: IntGauge,   // driven by pool observer task — TODO: assign to a T1 story
-    pub db_pool_idle: IntGauge,     // driven by pool observer task — TODO: assign to a T1 story
+    pub db_pool_in_use: IntGauge, // driven by pool observer task — TODO: assign to a T1 story
+    pub db_pool_idle: IntGauge,   // driven by pool observer task — TODO: assign to a T1 story
     pub reconciler_backlog: IntGaugeVec,
 }
 
@@ -178,7 +181,9 @@ impl Metrics {
                 "engagementhub_rpc_duration_seconds",
                 "RPC handler duration in seconds",
             )
-            .buckets(vec![0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0,
+            ]),
             &["rpc", "code"],
         )?;
         registry.register(Box::new(rpc_duration_seconds.clone()))?;
@@ -188,7 +193,9 @@ impl Metrics {
                 "engagementhub_adapter_duration_seconds",
                 "Adapter call duration in seconds",
             )
-            .buckets(vec![0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5]),
+            .buckets(vec![
+                0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5,
+            ]),
             &["target", "method", "code"],
         )?;
         registry.register(Box::new(adapter_duration_seconds.clone()))?;
@@ -198,7 +205,9 @@ impl Metrics {
                 "engagementhub_orchestration_duration_seconds",
                 "Top-level orchestration operation duration in seconds",
             )
-            .buckets(vec![0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0,
+            ]),
             &["stage"],
         )?;
         registry.register(Box::new(orchestration_duration_seconds.clone()))?;
@@ -216,7 +225,9 @@ impl Metrics {
                 "engagementhub_startup_duration_seconds",
                 "StartEngagement per-stage duration in seconds",
             )
-            .buckets(vec![0.001, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 5.0]),
+            .buckets(vec![
+                0.001, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 5.0,
+            ]),
             &["stage"],
         )?;
         registry.register(Box::new(startup_duration_seconds.clone()))?;
@@ -248,7 +259,9 @@ impl Metrics {
                 "engagementhub_time_to_first_response_seconds",
                 "Time from engagement start to first AI response in seconds",
             )
-            .buckets(vec![0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.0, 5.0, 10.0, 30.0]),
+            .buckets(vec![
+                0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.0, 5.0, 10.0, 30.0,
+            ]),
         )?;
         registry.register(Box::new(time_to_first_response_seconds.clone()))?;
 
@@ -399,7 +412,8 @@ mod tests {
         m.engagement_errors_total.with_label_values(&["_"]);
         m.reconciler_swept_total.with_label_values(&["_", "_"]);
         m.adapter_retries_total.with_label_values(&["_", "_", "_"]);
-        m.saga_compensation_outcome_total.with_label_values(&["_", "_"]);
+        m.saga_compensation_outcome_total
+            .with_label_values(&["_", "_"]);
         let text = m.gather_text().unwrap();
         for name in [
             "engagementhub_rpc_total",
@@ -430,7 +444,8 @@ mod tests {
         // appear in gather_text output. Same reasoning as counter Vec touches above —
         // test-only throwaway instance, no production side effects.
         m.rpc_duration_seconds.with_label_values(&["_", "_"]);
-        m.adapter_duration_seconds.with_label_values(&["_", "_", "_"]);
+        m.adapter_duration_seconds
+            .with_label_values(&["_", "_", "_"]);
         m.call_duration_seconds.with_label_values(&["_"]);
         let text = m.gather_text().unwrap();
         for name in [
@@ -445,8 +460,7 @@ mod tests {
             "engagementhub_audit_insert_duration_seconds",
         ] {
             assert!(
-                text.contains(&format!("{name}_bucket"))
-                    || text.contains(&format!("{name}_sum")),
+                text.contains(&format!("{name}_bucket")) || text.contains(&format!("{name}_sum")),
                 "histogram missing: {name}\n\nfull output:\n{text}"
             );
         }
@@ -564,13 +578,16 @@ mod tests {
         let m = Metrics::new(RegistryAdapter::Stub, Env::Dev, false).unwrap();
         // Touch labeled histograms so their families appear
         m.rpc_duration_seconds.with_label_values(&["_", "_"]);
-        m.adapter_duration_seconds.with_label_values(&["_", "_", "_"]);
+        m.adapter_duration_seconds
+            .with_label_values(&["_", "_", "_"]);
         m.call_duration_seconds.with_label_values(&["_"]);
         let text = m.gather_text().unwrap();
 
         // rpc_duration_seconds: spot-check 0.005 and 5.0 boundaries
         assert!(
-            text.contains(r#"engagementhub_rpc_duration_seconds_bucket{code="_",rpc="_",le="0.005"}"#),
+            text.contains(
+                r#"engagementhub_rpc_duration_seconds_bucket{code="_",rpc="_",le="0.005"}"#
+            ),
             "rpc_duration_seconds missing le=0.005 bucket\n\nfull output:\n{text}"
         );
         assert!(
