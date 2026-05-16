@@ -29,6 +29,7 @@ tonic-build = "0.12"
 tokio        = { workspace = true }
 wiremock     = { workspace = true }
 tokio-stream = { workspace = true }
+uuid         = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
