@@ -1,0 +1,38 @@
+// Forward contract for the Registry gRPC service.
+// Owned by the EH repo until Registry Service ships its canonical proto.
+// Regenerate Rust bindings: cargo build -p engagement-hub-adapters
+syntax = "proto3";
+
+package revocall.registry.v1;
+
+service Registry {
+  rpc ResolveSnapshot(ResolveSnapshotRequest) returns (ResolveSnapshotResponse);
+  rpc GetVoiceProfile(GetVoiceProfileRequest)  returns (GetVoiceProfileResponse);
+}
+
+message ResolveSnapshotRequest {
+  string org_id          = 1;
+  string journey_version = 2;
+}
+
+message ResolvedSnapshotProto {
+  string snapshot_id      = 1;
+  string journey_version  = 2;
+}
+
+message ResolveSnapshotResponse {
+  ResolvedSnapshotProto snapshot = 1;
+}
+
+message GetVoiceProfileRequest {
+  string voice_profile_id = 1;
+}
+
+message VoiceProfileProto {
+  string id   = 1;
+  string name = 2;
+}
+
+message GetVoiceProfileResponse {
+  VoiceProfileProto profile = 1;
+}

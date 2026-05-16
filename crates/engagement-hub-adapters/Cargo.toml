@@ -5,12 +5,30 @@ version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+registry-stub = []
+
 [dependencies]
-async-trait = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-reqwest = { workspace = true }
+async-trait   = { workspace = true }
+thiserror     = { workspace = true }
+tokio         = { workspace = true }
+reqwest       = { workspace = true, features = ["json"] }
+tonic         = { workspace = true }
+prost         = { workspace = true }
+futures       = { workspace = true }
+prometheus    = { workspace = true }
+anyhow        = { workspace = true }
+tracing       = { workspace = true }
+rand          = "0.8"
 engagement-hub-ports = { path = "../engagement-hub-ports" }
+
+[build-dependencies]
+tonic-build = "0.12"
+
+[dev-dependencies]
+tokio        = { workspace = true }
+wiremock     = "0.6"
+tokio-stream = "0.1"
 
 [lib]
 path = "src/lib.rs"
