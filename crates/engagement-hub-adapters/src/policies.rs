@@ -95,7 +95,8 @@ impl DeadlineContext {
 
     /// Returns the remaining duration until the deadline, or None if no deadline is set.
     pub fn remaining(&self) -> Option<Duration> {
-        self.deadline.map(|d| d.saturating_duration_since(Instant::now()))
+        self.deadline
+            .map(|d| d.saturating_duration_since(Instant::now()))
     }
 }
 
@@ -149,7 +150,7 @@ where
                 // the floor-only case; we add the backoff-aware check here.
                 if let Some(d) = deadline {
                     let need = backoff + ADAPTER_FLOOR;
-                    if d.remaining().map_or(false, |r| r < need) {
+                    if d.remaining().is_some_and(|r| r < need) {
                         if let Some(m) = metrics {
                             m.deadline_exceeded_total.with_label_values(&[target]).inc();
                         }
@@ -369,10 +370,8 @@ mod tests {
         // remaining = 250ms, adapter_floor = 200ms.
         // First attempt sets backoff to 50ms initially; after attempt 1 fails, deadline check sees
         // `need = 50ms + 200ms = 250ms`; remaining is right at boundary or below — fires.
-        let ctx = DeadlineContext::from_remaining(
-            Duration::from_millis(250),
-            Duration::from_secs(5),
-        );
+        let ctx =
+            DeadlineContext::from_remaining(Duration::from_millis(250), Duration::from_secs(5));
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
         let r: Result<i32, E> = with_retry(
