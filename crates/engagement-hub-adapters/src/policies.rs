@@ -131,15 +131,15 @@ where
                         .inc();
                 }
                 // Deadline gate before next attempt.
-                if let Some(d) = deadline {
-                    if d.is_too_close() {
-                        if let Some(m) = metrics {
-                            m.deadline_exceeded_total
-                                .with_label_values(&[target])
-                                .inc();
-                        }
-                        return Err(E::from_deadline());
+                if let Some(d) = deadline
+                    && d.is_too_close()
+                {
+                    if let Some(m) = metrics {
+                        m.deadline_exceeded_total
+                            .with_label_values(&[target])
+                            .inc();
                     }
+                    return Err(E::from_deadline());
                 }
                 let jitter = rand::thread_rng().gen_range(Duration::ZERO..=backoff);
                 tokio::time::sleep(jitter).await;
