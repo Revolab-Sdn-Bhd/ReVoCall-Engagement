@@ -265,7 +265,7 @@ git commit -m "feat(sdk/idempotency): add DeriveRequestID UUIDv5 package (#29)"
 
 - [ ] **Step 1: Create `docs/rust-mirror/idempotency.md` with this content**
 
-```markdown
+````markdown
 # Rust mirror: idempotency key derivation
 
 Go canonical: `clients/go/engagementhub/shared/idempotency`
@@ -307,7 +307,7 @@ The Rust implementation must produce identical UUIDs for identical inputs:
 | `batch-abc` | `+60126013446` | `1` | `03518426-c533-5d8f-bbb9-f8ad0c139ffb` |
 | `batch-abc` | `+60126013446` | `2` | `092e314e-4c2b-59d8-9991-1c438df81e2e` |
 | `batch-abc` | `+60126013447` | `1` | `49443967-f52d-512f-9934-03269b7e401c` |
-```
+````
 
 - [ ] **Step 2: Commit**
 
