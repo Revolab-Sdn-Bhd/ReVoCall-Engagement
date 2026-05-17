@@ -102,11 +102,28 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
 
     async fn cancel_execution(
         &self,
-        _ref_: &ExecutionRef,
-        _reason: CancelReason,
+        ref_: &ExecutionRef,
+        reason: CancelReason,
     ) -> Result<(), JmError> {
-        // Implemented in Task 11.
-        unimplemented!("see Task 11")
+        let client = self.client.clone();
+        let metrics = self.metrics.clone();
+        let request_id = Uuid::new_v4().to_string();
+        tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        let ref_id = ref_.as_uuid().to_string();
+        let reason_proto = cancel_reason_to_proto(reason);
+
+        with_retry(CLEANUP_RETRY, None, "journey_manager", Some(&metrics), move || {
+            let mut c = client.clone();
+            let r = proto::CancelExecutionRequest {
+                request_id: request_id.clone(),
+                execution_ref: Some(proto::ExecutionRefProto { id: ref_id.clone() }),
+                reason: reason_proto as i32,
+            };
+            async move {
+                c.cancel_execution(r).await.map_err(map_status).map(|_| ())
+            }
+        })
+        .await
     }
 
     async fn get_execution_timeline(
@@ -356,5 +373,46 @@ mod tests {
         let ids = mock.seen_request_ids.lock().unwrap();
         assert_eq!(ids.len(), 2);
         assert_eq!(ids[0], ids[1], "request_id must be stable across retries");
+    }
+
+    // ── cancel_execution tests ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn cancel_execution_happy_path() {
+        let mock = Arc::new(MockJm::always_ok_create(Uuid::new_v4()));
+        let adapter = JourneyManagerGrpcAdapter::new(
+            start_server(mock.clone()).await,
+            AdapterMetrics::for_test(),
+        );
+        adapter
+            .cancel_execution(
+                &ExecutionRef::new(Uuid::new_v4()),
+                CancelReason::CompensateFailedBind,
+            )
+            .await
+            .expect("ok");
+        assert_eq!(*mock.counters.cancel.lock().unwrap(), 1);
+    }
+
+    #[tokio::test]
+    async fn cancel_execution_retries_five_times_on_transient() {
+        let mock = Arc::new(MockJm {
+            create_result: Mutex::new(Ok(ExecutionRefProto { id: Uuid::new_v4().to_string() })),
+            cancel_result: Mutex::new(Err(Status::unavailable("flaky"))),
+            timeline_result: Mutex::new(Ok(vec![])),
+            seen_request_ids: Mutex::new(vec![]),
+            counters: CallCounters::default(),
+        });
+        let adapter = JourneyManagerGrpcAdapter::new(
+            start_server(mock.clone()).await,
+            AdapterMetrics::for_test(),
+        );
+        let _ = adapter
+            .cancel_execution(
+                &ExecutionRef::new(Uuid::new_v4()),
+                CancelReason::CompensateFailedBind,
+            )
+            .await;
+        assert_eq!(*mock.counters.cancel.lock().unwrap(), 5);
     }
 }
