@@ -135,9 +135,7 @@ where
                     && d.is_too_close()
                 {
                     if let Some(m) = metrics {
-                        m.deadline_exceeded_total
-                            .with_label_values(&[target])
-                            .inc();
+                        m.deadline_exceeded_total.with_label_values(&[target]).inc();
                     }
                     return Err(E::from_deadline());
                 }
@@ -181,7 +179,9 @@ mod tests {
         }
     }
     impl FromDeadline for E {
-        fn from_deadline() -> Self { Self::Deadline }
+        fn from_deadline() -> Self {
+            Self::Deadline
+        }
     }
 
     fn no_sleep_config(max: u32) -> RetryConfig {
@@ -319,7 +319,9 @@ mod tests {
         let r: Result<i32, E> = with_retry(no_sleep_config(1), None, "t", None, || {
             panic!("sync-prefix panic");
             #[allow(unreachable_code)]
-            async move { Ok::<i32, E>(0) }
+            async move {
+                Ok::<i32, E>(0)
+            }
         })
         .await;
         assert_eq!(r, Err(E::Panic));
@@ -327,26 +329,18 @@ mod tests {
 
     #[tokio::test]
     async fn deadline_too_close_short_circuits_before_next_attempt() {
-        let ctx = DeadlineContext::from_remaining(
-            Duration::from_millis(100),
-            Duration::from_secs(5),
-        );
+        let ctx =
+            DeadlineContext::from_remaining(Duration::from_millis(100), Duration::from_secs(5));
         // is_too_close()==true; first attempt should run, but no retry should be attempted.
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
-        let r: Result<i32, E> = with_retry(
-            no_sleep_config(3),
-            Some(&ctx),
-            "t",
-            None,
-            || {
-                let c = c.clone();
-                async move {
-                    c.fetch_add(1, Ordering::SeqCst);
-                    Err(E::Transient)
-                }
-            },
-        )
+        let r: Result<i32, E> = with_retry(no_sleep_config(3), Some(&ctx), "t", None, || {
+            let c = c.clone();
+            async move {
+                c.fetch_add(1, Ordering::SeqCst);
+                Err(E::Transient)
+            }
+        })
         .await;
         // First attempt ran, deadline check fires before attempt 2.
         assert_eq!(n.load(Ordering::SeqCst), 1);

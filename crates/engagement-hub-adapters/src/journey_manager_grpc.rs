@@ -62,41 +62,41 @@ impl JourneyManagerGrpcAdapter {
 
 #[async_trait]
 impl JourneyManagerPort for JourneyManagerGrpcAdapter {
-    async fn create_execution(
-        &self,
-        req: CreateExecutionReq,
-    ) -> Result<ExecutionRef, JmError> {
+    async fn create_execution(&self, req: CreateExecutionReq) -> Result<ExecutionRef, JmError> {
         let client = self.client.clone();
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
 
-        with_retry(WRITE_RETRY, None, "journey_manager", Some(&metrics), move || {
-            let mut c = client.clone();
-            let r = proto::CreateExecutionRequest {
-                request_id: request_id.clone(),
-                journey_version: req.journey_version.clone(),
-                org_id: req.org_id.clone(),
-                engagement_id: req.engagement_id.to_string(),
-            };
-            async move {
-                c.create_execution(r)
-                    .await
-                    .map_err(map_status)
-                    .and_then(|resp| {
-                        let er = resp
-                            .into_inner()
-                            .execution_ref
-                            .ok_or_else(|| {
+        with_retry(
+            WRITE_RETRY,
+            None,
+            "journey_manager",
+            Some(&metrics),
+            move || {
+                let mut c = client.clone();
+                let r = proto::CreateExecutionRequest {
+                    request_id: request_id.clone(),
+                    journey_version: req.journey_version.clone(),
+                    org_id: req.org_id.clone(),
+                    engagement_id: req.engagement_id.to_string(),
+                };
+                async move {
+                    c.create_execution(r)
+                        .await
+                        .map_err(map_status)
+                        .and_then(|resp| {
+                            let er = resp.into_inner().execution_ref.ok_or_else(|| {
                                 JmError::Permanent("journey_manager: empty execution_ref".into())
                             })?;
-                        let uid = er.id.parse::<Uuid>().map_err(|e| {
-                            JmError::Permanent(format!("bad execution_ref uuid: {e}"))
-                        })?;
-                        Ok(ExecutionRef::new(uid))
-                    })
-            }
-        })
+                            let uid = er.id.parse::<Uuid>().map_err(|e| {
+                                JmError::Permanent(format!("bad execution_ref uuid: {e}"))
+                            })?;
+                            Ok(ExecutionRef::new(uid))
+                        })
+                }
+            },
+        )
         .await
     }
 
@@ -112,17 +112,21 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
         let ref_id = ref_.as_uuid().to_string();
         let reason_proto = cancel_reason_to_proto(reason);
 
-        with_retry(CLEANUP_RETRY, None, "journey_manager", Some(&metrics), move || {
-            let mut c = client.clone();
-            let r = proto::CancelExecutionRequest {
-                request_id: request_id.clone(),
-                execution_ref: Some(proto::ExecutionRefProto { id: ref_id.clone() }),
-                reason: reason_proto as i32,
-            };
-            async move {
-                c.cancel_execution(r).await.map_err(map_status).map(|_| ())
-            }
-        })
+        with_retry(
+            CLEANUP_RETRY,
+            None,
+            "journey_manager",
+            Some(&metrics),
+            move || {
+                let mut c = client.clone();
+                let r = proto::CancelExecutionRequest {
+                    request_id: request_id.clone(),
+                    execution_ref: Some(proto::ExecutionRefProto { id: ref_id.clone() }),
+                    reason: reason_proto as i32,
+                };
+                async move { c.cancel_execution(r).await.map_err(map_status).map(|_| ()) }
+            },
+        )
         .await
     }
 
@@ -138,31 +142,37 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
         let ref_id = ref_.as_uuid().to_string();
         let after = opts.after_sequence;
 
-        with_retry(DEFAULT_RETRY, None, "journey_manager", Some(&metrics), move || {
-            let mut c = client.clone();
-            let r = proto::GetExecutionTimelineRequest {
-                request_id: request_id.clone(),
-                execution_ref: Some(proto::ExecutionRefProto { id: ref_id.clone() }),
-                after_sequence: after,
-            };
-            async move {
-                c.get_execution_timeline(r)
-                    .await
-                    .map_err(map_status)
-                    .map(|resp| {
-                        let events = resp
-                            .into_inner()
-                            .events
-                            .into_iter()
-                            .map(|e| TimelineEvent {
-                                sequence: e.sequence,
-                                kind: e.kind,
-                            })
-                            .collect();
-                        Timeline { events }
-                    })
-            }
-        })
+        with_retry(
+            DEFAULT_RETRY,
+            None,
+            "journey_manager",
+            Some(&metrics),
+            move || {
+                let mut c = client.clone();
+                let r = proto::GetExecutionTimelineRequest {
+                    request_id: request_id.clone(),
+                    execution_ref: Some(proto::ExecutionRefProto { id: ref_id.clone() }),
+                    after_sequence: after,
+                };
+                async move {
+                    c.get_execution_timeline(r)
+                        .await
+                        .map_err(map_status)
+                        .map(|resp| {
+                            let events = resp
+                                .into_inner()
+                                .events
+                                .into_iter()
+                                .map(|e| TimelineEvent {
+                                    sequence: e.sequence,
+                                    kind: e.kind,
+                                })
+                                .collect();
+                            Timeline { events }
+                        })
+                }
+            },
+        )
         .await
     }
 }
@@ -172,10 +182,10 @@ mod tests {
     use super::*;
     use engagement_hub_ports::types::EngagementId;
     use proto::{
-        journey_manager_server::{JourneyManager as JmServer, JourneyManagerServer},
         CancelExecutionRequest, CancelExecutionResponse, CreateExecutionRequest,
         CreateExecutionResponse, ExecutionRefProto, GetExecutionTimelineRequest,
         GetExecutionTimelineResponse,
+        journey_manager_server::{JourneyManager as JmServer, JourneyManagerServer},
     };
     use std::sync::Mutex;
     use tokio::net::TcpListener;
@@ -319,10 +329,8 @@ mod tests {
             seen_request_ids: Mutex::new(vec![]),
             counters: CallCounters::default(),
         });
-        let adapter = JourneyManagerGrpcAdapter::new(
-            start_server(mock).await,
-            AdapterMetrics::for_test(),
-        );
+        let adapter =
+            JourneyManagerGrpcAdapter::new(start_server(mock).await, AdapterMetrics::for_test());
         let err = adapter
             .create_execution(CreateExecutionReq {
                 journey_version: "bogus".into(),
@@ -343,10 +351,8 @@ mod tests {
             seen_request_ids: Mutex::new(vec![]),
             counters: CallCounters::default(),
         });
-        let adapter = JourneyManagerGrpcAdapter::new(
-            start_server(mock).await,
-            AdapterMetrics::for_test(),
-        );
+        let adapter =
+            JourneyManagerGrpcAdapter::new(start_server(mock).await, AdapterMetrics::for_test());
         let err = adapter
             .create_execution(CreateExecutionReq {
                 journey_version: "v1".into(),
@@ -428,7 +434,9 @@ mod tests {
     #[tokio::test]
     async fn cancel_execution_retries_five_times_on_transient() {
         let mock = Arc::new(MockJm {
-            create_result: Mutex::new(Ok(ExecutionRefProto { id: Uuid::new_v4().to_string() })),
+            create_result: Mutex::new(Ok(ExecutionRefProto {
+                id: Uuid::new_v4().to_string(),
+            })),
             cancel_result: Mutex::new(Err(Status::unavailable("flaky"))),
             timeline_result: Mutex::new(Ok(vec![])),
             seen_request_ids: Mutex::new(vec![]),
@@ -455,20 +463,26 @@ mod tests {
             create_result: Mutex::new(Err(Status::not_found("n/a"))),
             cancel_result: Mutex::new(Ok(())),
             timeline_result: Mutex::new(Ok(vec![
-                proto::TimelineEventProto { sequence: 1, kind: "node_entered".into() },
-                proto::TimelineEventProto { sequence: 2, kind: "node_exited".into() },
+                proto::TimelineEventProto {
+                    sequence: 1,
+                    kind: "node_entered".into(),
+                },
+                proto::TimelineEventProto {
+                    sequence: 2,
+                    kind: "node_exited".into(),
+                },
             ])),
             seen_request_ids: Mutex::new(vec![]),
             counters: CallCounters::default(),
         });
-        let adapter = JourneyManagerGrpcAdapter::new(
-            start_server(mock).await,
-            AdapterMetrics::for_test(),
-        );
+        let adapter =
+            JourneyManagerGrpcAdapter::new(start_server(mock).await, AdapterMetrics::for_test());
         let t = adapter
             .get_execution_timeline(
                 &ExecutionRef::new(Uuid::new_v4()),
-                TimelineOpts { after_sequence: None },
+                TimelineOpts {
+                    after_sequence: None,
+                },
             )
             .await
             .expect("ok");
@@ -502,7 +516,10 @@ mod tests {
             .await;
         let ids = mock.seen_request_ids.lock().unwrap();
         assert_eq!(ids.len(), 2);
-        assert_ne!(ids[0], ids[1], "request_id must NOT be reused across method invocations");
+        assert_ne!(
+            ids[0], ids[1],
+            "request_id must NOT be reused across method invocations"
+        );
     }
 
     struct SlowMockJm;
@@ -515,7 +532,9 @@ mod tests {
         ) -> Result<Response<CreateExecutionResponse>, Status> {
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
             Ok(Response::new(CreateExecutionResponse {
-                execution_ref: Some(ExecutionRefProto { id: Uuid::new_v4().to_string() }),
+                execution_ref: Some(ExecutionRefProto {
+                    id: Uuid::new_v4().to_string(),
+                }),
             }))
         }
         async fn cancel_execution(
@@ -557,7 +576,11 @@ mod tests {
             })
             .await
             .expect_err("must time out, not succeed");
-        assert!(start.elapsed() < std::time::Duration::from_secs(2), "did not time out: {:?}", start.elapsed());
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(2),
+            "did not time out: {:?}",
+            start.elapsed()
+        );
         let _ = err;
     }
 }

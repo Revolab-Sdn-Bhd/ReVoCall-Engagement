@@ -125,7 +125,10 @@ mod tests {
         let r = Registry::new();
         let m = AdapterMetrics::new(&r).unwrap();
         m.record_compensation(CompensationStage::JmCancel, CompensationOutcome::Success);
-        m.record_compensation(CompensationStage::VmStop, CompensationOutcome::ExhaustedToReconciler);
+        m.record_compensation(
+            CompensationStage::VmStop,
+            CompensationOutcome::ExhaustedToReconciler,
+        );
         let text = gather_text(&r);
         assert!(text.contains(
             "engagementhub_saga_compensation_outcome_total{result=\"success\",stage=\"jm_cancel\"} 1"
