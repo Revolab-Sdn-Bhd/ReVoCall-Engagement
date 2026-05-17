@@ -140,6 +140,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         };
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,
@@ -202,6 +203,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         };
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             policy,
@@ -241,6 +243,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         };
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             DEFAULT_RETRY,
@@ -289,6 +292,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         };
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,
@@ -338,6 +342,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         }
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             DEFAULT_RETRY,
@@ -382,6 +387,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         let url = format!("{}/v1/telephonies/{}", self.base_url, id.as_uuid());
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             DEFAULT_RETRY,
@@ -425,6 +431,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         };
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,
@@ -472,6 +479,7 @@ impl VoiceManagerPort for VoiceManagerHttpAdapter {
         );
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,

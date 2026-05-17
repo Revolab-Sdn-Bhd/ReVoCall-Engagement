@@ -67,6 +67,7 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,
@@ -109,6 +110,7 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
         let ref_id = ref_.as_uuid().to_string();
         let reason_proto = cancel_reason_to_proto(reason);
 
@@ -139,6 +141,7 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
         let ref_id = ref_.as_uuid().to_string();
         let after = opts.after_sequence;
 

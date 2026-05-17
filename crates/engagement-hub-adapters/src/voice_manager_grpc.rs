@@ -81,6 +81,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,
@@ -122,6 +123,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
         let ref_id = ref_.as_uuid().to_string();
         let mode_proto = stop_mode_to_proto(&mode);
         // Graceful is NOT idempotent — single attempt only. Abort is idempotent — 5 attempts.
@@ -152,6 +154,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             DEFAULT_RETRY,
@@ -182,6 +185,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             WRITE_RETRY,
@@ -216,6 +220,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
 
         with_retry(
             DEFAULT_RETRY,
@@ -251,6 +256,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
         let tid = id.as_uuid().to_string();
 
         with_retry(
@@ -285,6 +291,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
         let tid = req.id.as_uuid().to_string();
 
         with_retry(
@@ -320,6 +327,7 @@ impl VoiceManagerPort for VoiceManagerGrpcAdapter {
         let metrics = self.metrics.clone();
         let request_id = Uuid::new_v4().to_string();
         tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        tracing::debug!(adapter.request_id = %request_id, "adapter call");
         let tid = id.as_uuid().to_string();
         let usage = usage.to_string();
 
