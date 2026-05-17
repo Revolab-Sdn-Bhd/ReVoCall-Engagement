@@ -40,6 +40,14 @@ func TestErrorsIs_MatchesSentinelThroughWrap(t *testing.T) {
 	}
 }
 
+func TestError_Is_RejectsNonError(t *testing.T) {
+	e := &eh.Error{Code: eh.CodeInternal}
+	other := errors.New("unrelated")
+	if errors.Is(e, other) {
+		t.Fatal("errors.Is(*Error, non-*Error) should return false")
+	}
+}
+
 func TestSentinels_AllDistinct(t *testing.T) {
 	sentinels := []*eh.Error{
 		eh.ErrRouteResolutionFailed,
@@ -94,6 +102,8 @@ func TestClassifiers_TruthTable(t *testing.T) {
 		{eh.CodeEngagementAlreadyTerminal, false, true, true, false},
 		{eh.CodeRequestIDConflict, false, true, true, false},
 		{eh.CodeInternal, true, false, false, true},
+		// UNSPECIFIED — must not be classified as client/server/transient/terminal
+		{eh.EngagementErrorCode(0), false, false, false, false},
 	}
 	for _, c := range cases {
 		e := &eh.Error{Code: c.code}
@@ -204,5 +214,39 @@ func TestFromConnectError_UnwrapsThroughWrap(t *testing.T) {
 	}
 	if got.Code != eh.CodeInternal {
 		t.Errorf("Code = %v, want %v", got.Code, eh.CodeInternal)
+	}
+}
+
+// TestClassifiers_CoverAllCodes asserts that every non-UNSPECIFIED proto code
+// is classified by at least one of IsTransient / IsTerminal, OR is one of the
+// three codes (VoiceSessionRejected, JourneyExecutionRejected, CallEndedWithError)
+// intentionally classified as neither. If a new proto code is added without
+// updating the classifiers, this test fails.
+func TestClassifiers_CoverAllCodes(t *testing.T) {
+	intentionallyNeither := map[eh.EngagementErrorCode]bool{
+		// Pure client errors: neither transient (retriable) nor terminal (never-succeed).
+		// They are caller-attributable but may succeed on a corrected retry.
+		eh.CodeRouteResolutionFailed:    true,
+		eh.CodeJourneyVersionNotFound:   true,
+		eh.CodeTelephonyNotAvailable:    true,
+		eh.CodeVoiceProfileNotFound:     true,
+		eh.CodeVoiceSessionRejected:     true,
+		eh.CodeJourneyExecutionRejected: true,
+		eh.CodeCallEndedWithError:       true,
+	}
+	for codeInt, name := range engagementv1.EngagementErrorCode_name {
+		if codeInt == 0 {
+			continue // skip UNSPECIFIED
+		}
+		code := eh.EngagementErrorCode(codeInt)
+		e := &eh.Error{Code: code}
+		transient := eh.IsTransient(e)
+		terminal := eh.IsTerminal(e)
+		if !transient && !terminal && !intentionallyNeither[code] {
+			t.Errorf("code %s (%d) is neither transient nor terminal and not in intentionallyNeither set — update classifiers or the test", name, codeInt)
+		}
+		if transient && terminal {
+			t.Errorf("code %s (%d) is both transient and terminal — classifications must be mutually exclusive", name, codeInt)
+		}
 	}
 }

@@ -71,6 +71,9 @@ func (e *Error) Is(target error) bool {
 }
 
 // Sentinels — one per non-UNSPECIFIED EngagementErrorCode. Use with errors.Is.
+//
+// These are shared package-level instances. Do not mutate their fields;
+// to attach context, construct a new *Error with NewError or a literal.
 var (
 	ErrRouteResolutionFailed     = &Error{Code: CodeRouteResolutionFailed}
 	ErrJourneyVersionNotFound    = &Error{Code: CodeJourneyVersionNotFound}
@@ -171,8 +174,13 @@ func FromConnectError(err error) (*Error, bool) {
 		e := &Error{
 			Code:    protoErr.Code,
 			Message: protoErr.Message,
-			Details: protoErr.Details,
 			cause:   err,
+		}
+		if len(protoErr.Details) > 0 {
+			e.Details = make(map[string]string, len(protoErr.Details))
+			for k, v := range protoErr.Details {
+				e.Details[k] = v
+			}
 		}
 		if protoErr.DownstreamService != nil {
 			e.DownstreamService = *protoErr.DownstreamService
