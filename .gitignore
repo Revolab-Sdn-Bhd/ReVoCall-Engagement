@@ -10,3 +10,4 @@ Cargo.lock.bak
 /.traces/
 .sqlx/
 docker-compose.override.yml
+.worktrees/
