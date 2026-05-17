@@ -47,6 +47,7 @@ The port traits carry no context/deadline parameter (locked from T1-02). PRD §1
 Real contracts extracted from admin-backend (`cmd/server/admin/calllog/services.go` and `analytic/service.go`).
 
 **PostCall** (base: ai-handler / post-call-worker):
+
 - `GET /calls/{id}/transcription`
 - `GET /calls/{id}/summary` → unwrap `.data`
 - `GET /calls/{id}/sentiment` → unwrap `.data`
@@ -55,6 +56,7 @@ Real contracts extracted from admin-backend (`cmd/server/admin/calllog/services.
 - `GET /calls/organizations/{org_id}?limit=&skip=&start_date=&end_date=&contact_number=&call_id=`
 
 **Analytics** (base: ai-handler):
+
 - `GET /calls/agents/{agent_id}/analytics?metric=&granularity=&startDate=&endDate=`
 - `GET /calls/agents/{agent_id}/metrics?…` → unwrap `.data`
 - `GET /calls/organizations/{org_id}/analytics?…`
@@ -120,14 +122,17 @@ The ports crate is a separate crate from adapters; this is an intentional T1-03 
 ### File Map
 
 **`engagement-hub-ports`** (modify):
+
 - `src/error.rs` — add `InternalPanic` to all 5 error enums; add `IsRetryable` + `FromPanic` traits
 - `src/types.rs` — update all types to match real downstream contracts (real fields, serde derives)
 - `src/lib.rs` — re-export new traits
 
 **`proto/registry/v1/`** (create):
+
 - `registry.proto` — Registry gRPC service forward contract (2 RPCs)
 
 **`engagement-hub-adapters`** (new/modify):
+
 - `Cargo.toml` — add tonic, prost, futures, rand, prometheus, reqwest+json; build-dep tonic-build; dev-dep wiremock, tokio-stream; feature `registry-stub`
 - `build.rs` — compile registry proto with tonic-build
 - `src/lib.rs` — expose all modules
@@ -149,6 +154,7 @@ The ports crate is a separate crate from adapters; this is an intentional T1-03 
 ### Task 1: `InternalPanic`, `IsRetryable`, `FromPanic` — ports crate
 
 **Files:**
+
 - Modify: `crates/engagement-hub-ports/src/error.rs`
 - Modify: `crates/engagement-hub-ports/src/lib.rs`
 
@@ -266,6 +272,7 @@ The ports crate is a separate crate from adapters; this is an intentional T1-03 
 - [ ] **Step 1.2: Re-export the new traits from `src/lib.rs`**
 
   In `crates/engagement-hub-ports/src/lib.rs`, add:
+
   ```rust
   pub use error::{FromPanic, IsRetryable};
   ```
@@ -292,6 +299,7 @@ The ports crate is a separate crate from adapters; this is an intentional T1-03 
 ### Task 2: Expand domain types to match real downstream contracts
 
 **Files:**
+
 - Modify: `crates/engagement-hub-ports/src/types.rs`
 - Modify: `crates/engagement-hub-ports/Cargo.toml` (add `serde_json`)
 
@@ -591,6 +599,7 @@ The current types are empty structs. Replace them with fields that match the act
 - [ ] **Step 2.2: Add `serde_json` to ports Cargo.toml (needed for potential future `Value` fields)**
 
   In `crates/engagement-hub-ports/Cargo.toml`, under `[dependencies]`, add:
+
   ```toml
   serde_json = { workspace = true }
   ```
@@ -600,6 +609,7 @@ The current types are empty structs. Replace them with fields that match the act
   Run `cargo test -p engagement-hub-ports --features fake` — it will fail because the old empty-struct fixtures are now invalid. Fix each fake's test fixtures:
 
   In `src/fake/registry.rs`, update test fixture constructors:
+
   ```rust
   // Old: Outcome::Success(ResolvedSnapshot {})
   // New:
@@ -610,6 +620,7 @@ The current types are empty structs. Replace them with fields that match the act
   ```
 
   In `src/fake/post_call.rs`, update `Transcript`, `Summary`, `Sentiment`, `OutputExtraction`, `CallLog`, `Page<CallLog>` constructors:
+
   ```rust
   Outcome::Success(Transcript { messages: vec![], total_size: 0 })
   Outcome::Success(Summary { summary: "test".into(), resolution: None, resolution_explanation: None })
@@ -619,6 +630,7 @@ The current types are empty structs. Replace them with fields that match the act
   ```
 
   In `src/fake/analytics.rs`, update `Analytics` and `Metrics` constructors:
+
   ```rust
   Outcome::Success(Analytics {
       average_conversation_duration: 0.0,
@@ -646,6 +658,7 @@ The current types are empty structs. Replace them with fields that match the act
 ### Task 3: Registry proto + build.rs
 
 **Files:**
+
 - Create: `proto/registry/v1/registry.proto`
 - Create: `crates/engagement-hub-adapters/build.rs`
 - Modify: `crates/engagement-hub-adapters/Cargo.toml`
@@ -767,6 +780,7 @@ The current types are empty structs. Replace them with fields that match the act
 ### Task 4: `AdapterMetrics` struct
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/metrics.rs`
 
 - [ ] **Step 4.1: Write `metrics.rs`**
@@ -835,6 +849,7 @@ The current types are empty structs. Replace them with fields that match the act
 - [ ] **Step 4.2: Update `src/lib.rs` to expose the module**
 
   Replace the file:
+
   ```rust
   pub mod metrics;
   // remaining modules added in subsequent tasks
@@ -860,6 +875,7 @@ The current types are empty structs. Replace them with fields that match the act
 ### Task 5: `policies.rs` — retry, deadline, panic-safety
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/policies.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -1110,6 +1126,7 @@ This is the shared reliability layer. All adapters call `with_retry(config, targ
 ### Task 6: `RegistryStubAdapter`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/registry_stub.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -1269,6 +1286,7 @@ The stub is only compiled when the `registry-stub` Cargo feature is enabled. It 
 ### Task 7: `RegistryGrpcAdapter`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/registry_grpc.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -1517,10 +1535,12 @@ gRPC status code mapping: `NOT_FOUND`/`INVALID_ARGUMENT`/`FAILED_PRECONDITION`/`
 ### Task 8: `PostCallHttpAdapter`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/post_call_http.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
 **Endpoint map** (from `admin/backendv2/cmd/server/admin/calllog/services.go`):
+
 - `GET /calls/{id}/transcription` → `{ "data": [{"message","role","audio_url","emotion",...}], "totalSize": int }`
 - `GET /calls/{id}/summary` → `{ "data": {"summary","resolution","resolution_explanation"} }`
 - `GET /calls/{id}/sentiment` → `{ "data": {"sentiment","justification"} }`
@@ -1956,10 +1976,12 @@ HTTP status mapping: 404/400/422 → `Permanent`; 503 → `Unavailable`; everyth
 ### Task 9: `AnalyticsHttpAdapter`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/analytics_http.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
 **Endpoint map** (from `admin/backendv2/cmd/server/admin/analytic/service.go`):
+
 - `GET /calls/agents/{agent_id}/analytics?metric=&granularity=&startDate=&endDate=` → `GetAnalyticsResponse` (direct, no `.data` wrapper)
 - `GET /calls/agents/{agent_id}/metrics?…` → `{ "data": {"categories":[…], "series":[…]} }` (`.data` wrapper)
 - `GET /calls/organizations/{org_id}/analytics?…` → same shape as agent analytics
@@ -2289,6 +2311,7 @@ HTTP status mapping: 404/400/422 → `Permanent`; 503 → `Unavailable`; everyth
 ### Task 10: Replace old scaffold tests + full suite green
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/tests/adapter_scaffolding.rs`
 
 - [ ] **Step 10.1: Replace the old panicking stubs with constructor smoke tests**
@@ -2364,6 +2387,7 @@ HTTP status mapping: 404/400/422 → `Permanent`; 503 → `Unavailable`; everyth
   This fails the CI if `.unwrap()` or `.expect()` appear outside `policies.rs` in adapter source files.
 
   Check whether a CI workflow file exists first:
+
   ```bash
   ls .github/workflows/ 2>/dev/null || echo "no CI yet"
   ```
