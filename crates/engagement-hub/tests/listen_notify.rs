@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use engagement_hub::{
     db::MIGRATOR,
-    notify::{ListenNotifyManager, NotifyPayload},
+    notify::ListenNotifyManager,
 };
 
 fn db_url() -> String {
