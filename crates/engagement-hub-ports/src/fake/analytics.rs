@@ -171,13 +171,72 @@ impl AnalyticsPort for FakeAnalyticsPort {
 mod tests {
     use super::*;
 
+    fn empty_analytics() -> Analytics {
+        Analytics {
+            average_conversation_duration: 0.0,
+            containment_rate: 0.0,
+            customer_satisfaction_rate: 0.0,
+            dropoff_rate: 0.0,
+            escalation_rate: 0.0,
+            total_inquiries: 0,
+            category_counts: std::collections::HashMap::new(),
+        }
+    }
+
+    fn empty_metrics() -> Metrics {
+        Metrics {
+            categories: vec![],
+            series: vec![],
+        }
+    }
+
+    fn agent_analytics_req() -> GetAgentAnalyticsReq {
+        GetAgentAnalyticsReq {
+            agent_id: "agent-1".into(),
+            metric: None,
+            granularity: None,
+            start_date: None,
+            end_date: None,
+        }
+    }
+
+    fn agent_metrics_req() -> GetAgentMetricsReq {
+        GetAgentMetricsReq {
+            agent_id: "agent-1".into(),
+            metric: None,
+            granularity: None,
+            start_date: None,
+            end_date: None,
+        }
+    }
+
+    fn org_analytics_req() -> GetOrgAnalyticsReq {
+        GetOrgAnalyticsReq {
+            org_id: "org-1".into(),
+            metric: None,
+            granularity: None,
+            start_date: None,
+            end_date: None,
+        }
+    }
+
+    fn org_metrics_req() -> GetOrgMetricsReq {
+        GetOrgMetricsReq {
+            org_id: "org-1".into(),
+            metric: None,
+            granularity: None,
+            start_date: None,
+            end_date: None,
+        }
+    }
+
     // --- get_agent_analytics ---
 
     #[tokio::test]
     async fn get_agent_analytics_success() {
         let fake = FakeAnalyticsPort::new();
-        fake.push_get_agent_analytics(Outcome::Success(Analytics {}));
-        let result = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        fake.push_get_agent_analytics(Outcome::Success(empty_analytics()));
+        let result = fake.get_agent_analytics(agent_analytics_req()).await;
         assert!(result.is_ok());
     }
 
@@ -185,7 +244,7 @@ mod tests {
     async fn get_agent_analytics_transient() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_analytics(Outcome::Transient("timeout".into()));
-        let result = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        let result = fake.get_agent_analytics(agent_analytics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Transient(_))));
     }
 
@@ -193,7 +252,7 @@ mod tests {
     async fn get_agent_analytics_permanent() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_analytics(Outcome::Permanent("forbidden".into()));
-        let result = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        let result = fake.get_agent_analytics(agent_analytics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Permanent(_))));
     }
 
@@ -201,7 +260,7 @@ mod tests {
     async fn get_agent_analytics_unavailable() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_analytics(Outcome::Unavailable);
-        let result = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        let result = fake.get_agent_analytics(agent_analytics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Unavailable)));
     }
 
@@ -211,7 +270,7 @@ mod tests {
         fake.push_get_agent_analytics(Outcome::Panic);
         let result =
             tokio::task::spawn(
-                async move { fake.get_agent_analytics(GetAgentAnalyticsReq {}).await },
+                async move { fake.get_agent_analytics(agent_analytics_req()).await },
             )
             .await;
         assert!(result.unwrap_err().is_panic());
@@ -222,8 +281,8 @@ mod tests {
     #[tokio::test]
     async fn get_agent_metrics_success() {
         let fake = FakeAnalyticsPort::new();
-        fake.push_get_agent_metrics(Outcome::Success(Metrics {}));
-        let result = fake.get_agent_metrics(GetAgentMetricsReq {}).await;
+        fake.push_get_agent_metrics(Outcome::Success(empty_metrics()));
+        let result = fake.get_agent_metrics(agent_metrics_req()).await;
         assert!(result.is_ok());
     }
 
@@ -231,7 +290,7 @@ mod tests {
     async fn get_agent_metrics_transient() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_metrics(Outcome::Transient("timeout".into()));
-        let result = fake.get_agent_metrics(GetAgentMetricsReq {}).await;
+        let result = fake.get_agent_metrics(agent_metrics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Transient(_))));
     }
 
@@ -239,7 +298,7 @@ mod tests {
     async fn get_agent_metrics_permanent() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_metrics(Outcome::Permanent("forbidden".into()));
-        let result = fake.get_agent_metrics(GetAgentMetricsReq {}).await;
+        let result = fake.get_agent_metrics(agent_metrics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Permanent(_))));
     }
 
@@ -248,7 +307,7 @@ mod tests {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_agent_metrics(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.get_agent_metrics(GetAgentMetricsReq {}).await })
+            tokio::task::spawn(async move { fake.get_agent_metrics(agent_metrics_req()).await })
                 .await;
         assert!(result.unwrap_err().is_panic());
     }
@@ -258,8 +317,8 @@ mod tests {
     #[tokio::test]
     async fn get_org_analytics_success() {
         let fake = FakeAnalyticsPort::new();
-        fake.push_get_org_analytics(Outcome::Success(Analytics {}));
-        let result = fake.get_org_analytics(GetOrgAnalyticsReq {}).await;
+        fake.push_get_org_analytics(Outcome::Success(empty_analytics()));
+        let result = fake.get_org_analytics(org_analytics_req()).await;
         assert!(result.is_ok());
     }
 
@@ -267,7 +326,7 @@ mod tests {
     async fn get_org_analytics_transient() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_analytics(Outcome::Transient("timeout".into()));
-        let result = fake.get_org_analytics(GetOrgAnalyticsReq {}).await;
+        let result = fake.get_org_analytics(org_analytics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Transient(_))));
     }
 
@@ -275,7 +334,7 @@ mod tests {
     async fn get_org_analytics_permanent() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_analytics(Outcome::Permanent("forbidden".into()));
-        let result = fake.get_org_analytics(GetOrgAnalyticsReq {}).await;
+        let result = fake.get_org_analytics(org_analytics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Permanent(_))));
     }
 
@@ -284,7 +343,7 @@ mod tests {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_analytics(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.get_org_analytics(GetOrgAnalyticsReq {}).await })
+            tokio::task::spawn(async move { fake.get_org_analytics(org_analytics_req()).await })
                 .await;
         assert!(result.unwrap_err().is_panic());
     }
@@ -294,8 +353,8 @@ mod tests {
     #[tokio::test]
     async fn get_org_metrics_success() {
         let fake = FakeAnalyticsPort::new();
-        fake.push_get_org_metrics(Outcome::Success(Metrics {}));
-        let result = fake.get_org_metrics(GetOrgMetricsReq {}).await;
+        fake.push_get_org_metrics(Outcome::Success(empty_metrics()));
+        let result = fake.get_org_metrics(org_metrics_req()).await;
         assert!(result.is_ok());
     }
 
@@ -303,7 +362,7 @@ mod tests {
     async fn get_org_metrics_transient() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_metrics(Outcome::Transient("timeout".into()));
-        let result = fake.get_org_metrics(GetOrgMetricsReq {}).await;
+        let result = fake.get_org_metrics(org_metrics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Transient(_))));
     }
 
@@ -311,7 +370,7 @@ mod tests {
     async fn get_org_metrics_permanent() {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_metrics(Outcome::Permanent("forbidden".into()));
-        let result = fake.get_org_metrics(GetOrgMetricsReq {}).await;
+        let result = fake.get_org_metrics(org_metrics_req()).await;
         assert!(matches!(result, Err(AnalyticsError::Permanent(_))));
     }
 
@@ -320,8 +379,7 @@ mod tests {
         let fake = FakeAnalyticsPort::new();
         fake.push_get_org_metrics(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.get_org_metrics(GetOrgMetricsReq {}).await })
-                .await;
+            tokio::task::spawn(async move { fake.get_org_metrics(org_metrics_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -330,14 +388,14 @@ mod tests {
         let fake = FakeAnalyticsPort::new();
         // Push transient first, then success
         fake.push_get_agent_analytics(Outcome::Transient("first".into()));
-        fake.push_get_agent_analytics(Outcome::Success(Analytics {}));
+        fake.push_get_agent_analytics(Outcome::Success(empty_analytics()));
 
         // First call should be transient
-        let first = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        let first = fake.get_agent_analytics(agent_analytics_req()).await;
         assert!(matches!(first, Err(AnalyticsError::Transient(ref msg)) if msg == "first"));
 
         // Second call should be success
-        let second = fake.get_agent_analytics(GetAgentAnalyticsReq {}).await;
+        let second = fake.get_agent_analytics(agent_analytics_req()).await;
         assert!(second.is_ok());
     }
 
@@ -347,7 +405,7 @@ mod tests {
         // Don't push anything
         let result =
             tokio::task::spawn(
-                async move { fake.get_agent_analytics(GetAgentAnalyticsReq {}).await },
+                async move { fake.get_agent_analytics(agent_analytics_req()).await },
             )
             .await;
         assert!(result.unwrap_err().is_panic());

@@ -114,8 +114,16 @@ mod tests {
     #[tokio::test]
     async fn resolve_snapshot_success() {
         let fake = FakeRegistryPort::new();
-        fake.push_resolve_snapshot(Outcome::Success(ResolvedSnapshot {}));
-        let result = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        fake.push_resolve_snapshot(Outcome::Success(ResolvedSnapshot {
+            snapshot_id: "snap-1".into(),
+            journey_version: "v1".into(),
+        }));
+        let result = fake
+            .resolve_snapshot(ResolveSnapshotReq {
+                org_id: "org-1".into(),
+                journey_version: "v1".into(),
+            })
+            .await;
         assert!(result.is_ok());
     }
 
@@ -123,7 +131,12 @@ mod tests {
     async fn resolve_snapshot_transient() {
         let fake = FakeRegistryPort::new();
         fake.push_resolve_snapshot(Outcome::Transient("timeout".into()));
-        let result = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        let result = fake
+            .resolve_snapshot(ResolveSnapshotReq {
+                org_id: "org-1".into(),
+                journey_version: "v1".into(),
+            })
+            .await;
         assert!(matches!(result, Err(RegistryError::Transient(_))));
     }
 
@@ -131,7 +144,12 @@ mod tests {
     async fn resolve_snapshot_permanent() {
         let fake = FakeRegistryPort::new();
         fake.push_resolve_snapshot(Outcome::Permanent("not found".into()));
-        let result = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        let result = fake
+            .resolve_snapshot(ResolveSnapshotReq {
+                org_id: "org-1".into(),
+                journey_version: "v1".into(),
+            })
+            .await;
         assert!(matches!(result, Err(RegistryError::Permanent(_))));
     }
 
@@ -139,7 +157,12 @@ mod tests {
     async fn resolve_snapshot_unavailable() {
         let fake = FakeRegistryPort::new();
         fake.push_resolve_snapshot(Outcome::Unavailable);
-        let result = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        let result = fake
+            .resolve_snapshot(ResolveSnapshotReq {
+                org_id: "org-1".into(),
+                journey_version: "v1".into(),
+            })
+            .await;
         assert!(matches!(result, Err(RegistryError::Unavailable)));
     }
 
@@ -147,16 +170,24 @@ mod tests {
     async fn resolve_snapshot_panic() {
         let fake = FakeRegistryPort::new();
         fake.push_resolve_snapshot(Outcome::Panic);
-        let result =
-            tokio::task::spawn(async move { fake.resolve_snapshot(ResolveSnapshotReq {}).await })
-                .await;
+        let result = tokio::task::spawn(async move {
+            fake.resolve_snapshot(ResolveSnapshotReq {
+                org_id: "org-1".into(),
+                journey_version: "v1".into(),
+            })
+            .await
+        })
+        .await;
         assert!(result.unwrap_err().is_panic());
     }
 
     #[tokio::test]
     async fn get_voice_profile_success() {
         let fake = FakeRegistryPort::new();
-        fake.push_get_voice_profile(Outcome::Success(VoiceProfile {}));
+        fake.push_get_voice_profile(Outcome::Success(VoiceProfile {
+            id: VoiceProfileId::new(),
+            name: "test-profile".into(),
+        }));
         let id = VoiceProfileId::new();
         let result = fake.get_voice_profile(&id).await;
         assert!(result.is_ok());
@@ -194,14 +225,21 @@ mod tests {
         let fake = FakeRegistryPort::new();
         // Push transient first, then success
         fake.push_resolve_snapshot(Outcome::Transient("first".into()));
-        fake.push_resolve_snapshot(Outcome::Success(ResolvedSnapshot {}));
+        fake.push_resolve_snapshot(Outcome::Success(ResolvedSnapshot {
+            snapshot_id: "snap-1".into(),
+            journey_version: "v1".into(),
+        }));
 
+        let req = || ResolveSnapshotReq {
+            org_id: "org-1".into(),
+            journey_version: "v1".into(),
+        };
         // First call should be transient
-        let first = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        let first = fake.resolve_snapshot(req()).await;
         assert!(matches!(first, Err(RegistryError::Transient(ref msg)) if msg == "first"));
 
         // Second call should be success
-        let second = fake.resolve_snapshot(ResolveSnapshotReq {}).await;
+        let second = fake.resolve_snapshot(req()).await;
         assert!(second.is_ok());
     }
 
@@ -209,9 +247,14 @@ mod tests {
     async fn test_resolve_snapshot_empty_queue_panics() {
         let fake = FakeRegistryPort::new();
         // Don't push anything
-        let result =
-            tokio::task::spawn(async move { fake.resolve_snapshot(ResolveSnapshotReq {}).await })
-                .await;
+        let result = tokio::task::spawn(async move {
+            fake.resolve_snapshot(ResolveSnapshotReq {
+                org_id: "org-1".into(),
+                journey_version: "v1".into(),
+            })
+            .await
+        })
+        .await;
         assert!(result.unwrap_err().is_panic());
     }
 }

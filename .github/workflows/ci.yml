@@ -35,5 +35,8 @@ jobs:
         run: cargo install sqlx-cli --no-default-features --features postgres,rustls --version ^0.8 --locked
       - name: Apply migrations
         run: sqlx migrate run --source migrations
+      - uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       # Note: fmt + clippy run in the separate ci-code-quality.yml workflow.
       - run: cargo test --workspace -- --test-threads=1

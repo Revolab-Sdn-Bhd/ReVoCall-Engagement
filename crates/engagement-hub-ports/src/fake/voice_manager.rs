@@ -284,6 +284,42 @@ mod tests {
     fn telephony() -> Telephony {
         Telephony {
             id: TelephonyId::new(),
+            org_id: "org-1".into(),
+            phone_number: "+1234567890".into(),
+        }
+    }
+
+    fn start_req() -> StartVoiceSessionReq {
+        StartVoiceSessionReq {
+            engagement_id: crate::types::EngagementId::new(),
+            org_id: "org-1".into(),
+        }
+    }
+
+    fn issue_token_req() -> IssueTestTokenReq {
+        IssueTestTokenReq {
+            org_id: "org-1".into(),
+        }
+    }
+
+    fn create_telephony_req() -> CreateTelephonyReq {
+        CreateTelephonyReq {
+            org_id: "org-1".into(),
+            phone_number: "+1234567890".into(),
+        }
+    }
+
+    fn list_telephonies_req() -> ListTelephoniesReq {
+        ListTelephoniesReq {
+            org_id: "org-1".into(),
+            page_token: None,
+        }
+    }
+
+    fn update_telephony_req() -> UpdateTelephonyReq {
+        UpdateTelephonyReq {
+            id: TelephonyId::new(),
+            phone_number: "+0987654321".into(),
         }
     }
 
@@ -294,10 +330,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         let id = Uuid::new_v4();
         fake.push_start_voice_session(Outcome::Success(VoiceSessionRef::new(id)));
-        let result = fake
-            .start_voice_session(StartVoiceSessionReq {})
-            .await
-            .unwrap();
+        let result = fake.start_voice_session(start_req()).await.unwrap();
         assert_eq!(result.as_uuid(), &id);
     }
 
@@ -305,7 +338,7 @@ mod tests {
     async fn start_voice_session_transient() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_start_voice_session(Outcome::Transient("timeout".into()));
-        let result = fake.start_voice_session(StartVoiceSessionReq {}).await;
+        let result = fake.start_voice_session(start_req()).await;
         assert!(matches!(result, Err(VmError::Transient(_))));
     }
 
@@ -313,7 +346,7 @@ mod tests {
     async fn start_voice_session_permanent() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_start_voice_session(Outcome::Permanent("invalid".into()));
-        let result = fake.start_voice_session(StartVoiceSessionReq {}).await;
+        let result = fake.start_voice_session(start_req()).await;
         assert!(matches!(result, Err(VmError::Permanent(_))));
     }
 
@@ -321,7 +354,7 @@ mod tests {
     async fn start_voice_session_unavailable() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_start_voice_session(Outcome::Unavailable);
-        let result = fake.start_voice_session(StartVoiceSessionReq {}).await;
+        let result = fake.start_voice_session(start_req()).await;
         assert!(matches!(result, Err(VmError::Unavailable)));
     }
 
@@ -330,10 +363,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_start_voice_session(Outcome::Panic);
         let result =
-            tokio::task::spawn(
-                async move { fake.start_voice_session(StartVoiceSessionReq {}).await },
-            )
-            .await;
+            tokio::task::spawn(async move { fake.start_voice_session(start_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -387,7 +417,7 @@ mod tests {
         fake.push_issue_test_token(Outcome::Success(TestToken {
             token: "tok123".into(),
         }));
-        let result = fake.issue_test_token(IssueTestTokenReq {}).await.unwrap();
+        let result = fake.issue_test_token(issue_token_req()).await.unwrap();
         assert_eq!(result.token, "tok123");
     }
 
@@ -395,7 +425,7 @@ mod tests {
     async fn issue_test_token_transient() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_issue_test_token(Outcome::Transient("timeout".into()));
-        let result = fake.issue_test_token(IssueTestTokenReq {}).await;
+        let result = fake.issue_test_token(issue_token_req()).await;
         assert!(matches!(result, Err(VmError::Transient(_))));
     }
 
@@ -403,7 +433,7 @@ mod tests {
     async fn issue_test_token_permanent() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_issue_test_token(Outcome::Permanent("denied".into()));
-        let result = fake.issue_test_token(IssueTestTokenReq {}).await;
+        let result = fake.issue_test_token(issue_token_req()).await;
         assert!(matches!(result, Err(VmError::Permanent(_))));
     }
 
@@ -412,8 +442,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_issue_test_token(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.issue_test_token(IssueTestTokenReq {}).await })
-                .await;
+            tokio::task::spawn(async move { fake.issue_test_token(issue_token_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 
@@ -425,8 +454,10 @@ mod tests {
         let expected_id = TelephonyId::new();
         fake.push_create_telephony(Outcome::Success(Telephony {
             id: expected_id.clone(),
+            org_id: "org-1".into(),
+            phone_number: "+1234567890".into(),
         }));
-        let result = fake.create_telephony(CreateTelephonyReq {}).await.unwrap();
+        let result = fake.create_telephony(create_telephony_req()).await.unwrap();
         assert_eq!(result.id, expected_id);
     }
 
@@ -434,7 +465,7 @@ mod tests {
     async fn create_telephony_transient() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_create_telephony(Outcome::Transient("timeout".into()));
-        let result = fake.create_telephony(CreateTelephonyReq {}).await;
+        let result = fake.create_telephony(create_telephony_req()).await;
         assert!(matches!(result, Err(VmError::Transient(_))));
     }
 
@@ -442,7 +473,7 @@ mod tests {
     async fn create_telephony_permanent() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_create_telephony(Outcome::Permanent("invalid".into()));
-        let result = fake.create_telephony(CreateTelephonyReq {}).await;
+        let result = fake.create_telephony(create_telephony_req()).await;
         assert!(matches!(result, Err(VmError::Permanent(_))));
     }
 
@@ -451,7 +482,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_create_telephony(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.create_telephony(CreateTelephonyReq {}).await })
+            tokio::task::spawn(async move { fake.create_telephony(create_telephony_req()).await })
                 .await;
         assert!(result.unwrap_err().is_panic());
     }
@@ -462,7 +493,7 @@ mod tests {
     async fn list_telephonies_success() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_list_telephonies(Outcome::Success(vec![telephony()]));
-        let result = fake.list_telephonies(ListTelephoniesReq {}).await;
+        let result = fake.list_telephonies(list_telephonies_req()).await;
         assert!(result.is_ok());
     }
 
@@ -470,7 +501,7 @@ mod tests {
     async fn list_telephonies_transient() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_list_telephonies(Outcome::Transient("timeout".into()));
-        let result = fake.list_telephonies(ListTelephoniesReq {}).await;
+        let result = fake.list_telephonies(list_telephonies_req()).await;
         assert!(matches!(result, Err(VmError::Transient(_))));
     }
 
@@ -478,7 +509,7 @@ mod tests {
     async fn list_telephonies_permanent() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_list_telephonies(Outcome::Permanent("forbidden".into()));
-        let result = fake.list_telephonies(ListTelephoniesReq {}).await;
+        let result = fake.list_telephonies(list_telephonies_req()).await;
         assert!(matches!(result, Err(VmError::Permanent(_))));
     }
 
@@ -487,7 +518,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_list_telephonies(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.list_telephonies(ListTelephoniesReq {}).await })
+            tokio::task::spawn(async move { fake.list_telephonies(list_telephonies_req()).await })
                 .await;
         assert!(result.unwrap_err().is_panic());
     }
@@ -500,6 +531,8 @@ mod tests {
         let expected_id = TelephonyId::new();
         fake.push_get_telephony(Outcome::Success(Telephony {
             id: expected_id.clone(),
+            org_id: "org-1".into(),
+            phone_number: "+1234567890".into(),
         }));
         let lookup_id = TelephonyId::new();
         let result = fake.get_telephony(&lookup_id).await.unwrap();
@@ -541,8 +574,10 @@ mod tests {
         let expected_id = TelephonyId::new();
         fake.push_update_telephony(Outcome::Success(Telephony {
             id: expected_id.clone(),
+            org_id: "org-1".into(),
+            phone_number: "+0987654321".into(),
         }));
-        let result = fake.update_telephony(UpdateTelephonyReq {}).await.unwrap();
+        let result = fake.update_telephony(update_telephony_req()).await.unwrap();
         assert_eq!(result.id, expected_id);
     }
 
@@ -550,7 +585,7 @@ mod tests {
     async fn update_telephony_transient() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_update_telephony(Outcome::Transient("timeout".into()));
-        let result = fake.update_telephony(UpdateTelephonyReq {}).await;
+        let result = fake.update_telephony(update_telephony_req()).await;
         assert!(matches!(result, Err(VmError::Transient(_))));
     }
 
@@ -558,7 +593,7 @@ mod tests {
     async fn update_telephony_permanent() {
         let fake = FakeVoiceManagerPort::new();
         fake.push_update_telephony(Outcome::Permanent("conflict".into()));
-        let result = fake.update_telephony(UpdateTelephonyReq {}).await;
+        let result = fake.update_telephony(update_telephony_req()).await;
         assert!(matches!(result, Err(VmError::Permanent(_))));
     }
 
@@ -567,7 +602,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         fake.push_update_telephony(Outcome::Panic);
         let result =
-            tokio::task::spawn(async move { fake.update_telephony(UpdateTelephonyReq {}).await })
+            tokio::task::spawn(async move { fake.update_telephony(update_telephony_req()).await })
                 .await;
         assert!(result.unwrap_err().is_panic());
     }
@@ -619,11 +654,11 @@ mod tests {
         fake.push_start_voice_session(Outcome::Success(session_ref()));
 
         // First call should be transient
-        let first = fake.start_voice_session(StartVoiceSessionReq {}).await;
+        let first = fake.start_voice_session(start_req()).await;
         assert!(matches!(first, Err(VmError::Transient(ref msg)) if msg == "first"));
 
         // Second call should be success
-        let second = fake.start_voice_session(StartVoiceSessionReq {}).await;
+        let second = fake.start_voice_session(start_req()).await;
         assert!(second.is_ok());
     }
 
@@ -632,10 +667,7 @@ mod tests {
         let fake = FakeVoiceManagerPort::new();
         // Don't push anything
         let result =
-            tokio::task::spawn(
-                async move { fake.start_voice_session(StartVoiceSessionReq {}).await },
-            )
-            .await;
+            tokio::task::spawn(async move { fake.start_voice_session(start_req()).await }).await;
         assert!(result.unwrap_err().is_panic());
     }
 }

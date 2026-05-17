@@ -1,86 +1,14 @@
-//! Adapter stubs for engagement-hub downstream integrations.
-//!
-//! These are structural placeholders only. Real implementations land in T1-03+.
+pub mod analytics_http;
+pub mod metrics;
+pub mod policies;
+pub mod post_call_http;
+pub mod registry_grpc;
 
-#[allow(unused_imports)]
-use async_trait::async_trait;
+pub use analytics_http::AnalyticsHttpAdapter;
+pub use post_call_http::PostCallHttpAdapter;
+pub use registry_grpc::RegistryGrpcAdapter;
 
-// ---------------------------------------------------------------------------
-// Registry
-// ---------------------------------------------------------------------------
-
-/// gRPC adapter for the Registry service.
-pub struct RegistryGrpcAdapter {
-    // TODO T1-03: add tonic Channel field
-}
-
-#[allow(clippy::new_without_default)]
-impl RegistryGrpcAdapter {
-    pub fn new() -> Self {
-        todo!("not yet implemented — see T1-03")
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Journey Manager
-// ---------------------------------------------------------------------------
-
-/// gRPC adapter for the Journey Manager service.
-pub struct JourneyManagerGrpcAdapter {
-    // TODO T1-03: add tonic Channel field
-}
-
-#[allow(clippy::new_without_default)]
-impl JourneyManagerGrpcAdapter {
-    pub fn new() -> Self {
-        todo!("not yet implemented — see T1-03")
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Voice Manager (HTTP today, gRPC future)
-// ---------------------------------------------------------------------------
-
-/// HTTP adapter for the Voice Manager service.
-pub struct VoiceManagerHttpAdapter {
-    // TODO T1-03: add reqwest::Client + base URL fields
-}
-
-#[allow(clippy::new_without_default)]
-impl VoiceManagerHttpAdapter {
-    pub fn new() -> Self {
-        todo!("not yet implemented — see T1-03")
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Post-Call (HTTP today)
-// ---------------------------------------------------------------------------
-
-/// HTTP adapter for the Post-Call service.
-pub struct PostCallHttpAdapter {
-    // TODO T1-03: add reqwest::Client + base URL fields
-}
-
-#[allow(clippy::new_without_default)]
-impl PostCallHttpAdapter {
-    pub fn new() -> Self {
-        todo!("not yet implemented — see T1-03")
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Analytics (HTTP today)
-// ---------------------------------------------------------------------------
-
-/// HTTP adapter for the Analytics service.
-pub struct AnalyticsHttpAdapter {
-    // TODO T1-03: add reqwest::Client + base URL fields
-}
-
-#[allow(clippy::new_without_default)]
-impl AnalyticsHttpAdapter {
-    pub fn new() -> Self {
-        todo!("not yet implemented — see T1-03")
-    }
-}
+#[cfg(feature = "registry-stub")]
+pub mod registry_stub;
+#[cfg(feature = "registry-stub")]
+pub use registry_stub::RegistryStubAdapter;
