@@ -17,10 +17,7 @@ use sqlx::postgres::PgPoolOptions;
 use tokio::time::timeout;
 use uuid::Uuid;
 
-use engagement_hub::{
-    db::MIGRATOR,
-    notify::ListenNotifyManager,
-};
+use engagement_hub::{db::MIGRATOR, notify::ListenNotifyManager};
 
 fn db_url() -> String {
     std::env::var("EH_DATABASE_URL")
@@ -109,9 +106,8 @@ async fn insert_event_subscriber_receives_notify() {
     // Use a connected_signal so we know when LISTEN is ready (no arbitrary sleep).
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     let (connected_tx, connected_rx) = tokio::sync::oneshot::channel::<()>();
-    let manager =
-        ListenNotifyManager::new(db_url(), pool.clone(), test_metrics())
-            .with_connected_signal(connected_tx);
+    let manager = ListenNotifyManager::new(db_url(), pool.clone(), test_metrics())
+        .with_connected_signal(connected_tx);
 
     // Subscribe before the manager loop starts so we do not miss the NOTIFY.
     let mut rx = manager.subscribe_engagement(engagement_id).await;
@@ -283,9 +279,8 @@ async fn notify_payload_matches_inserted_event_with_batch() {
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
     let (connected_tx, connected_rx) = tokio::sync::oneshot::channel::<()>();
-    let manager =
-        ListenNotifyManager::new(db_url(), pool.clone(), test_metrics())
-            .with_connected_signal(connected_tx);
+    let manager = ListenNotifyManager::new(db_url(), pool.clone(), test_metrics())
+        .with_connected_signal(connected_tx);
 
     let mut rx_eng = manager.subscribe_engagement(engagement_id).await;
     let mut rx_batch = manager.subscribe_batch(batch_id).await;
