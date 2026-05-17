@@ -52,6 +52,15 @@ pub const CLEANUP_RETRY: RetryConfig = RetryConfig {
     max_backoff: Duration::from_secs(2),
 };
 
+/// 1 attempt — used for non-idempotent operations like
+/// `stop_voice_session(mode=Graceful)`. Per `engagement_hub_ports::types::StopMode`,
+/// Graceful is documented as NOT idempotent, so retries are unsafe.
+pub const GRACEFUL_STOP_RETRY: RetryConfig = RetryConfig {
+    max_attempts: 1,
+    initial_backoff: Duration::from_millis(50),
+    max_backoff: Duration::from_secs(2),
+};
+
 // ---------------------------------------------------------------------------
 // Deadline
 // ---------------------------------------------------------------------------

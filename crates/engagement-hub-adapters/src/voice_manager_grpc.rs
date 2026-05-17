@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     metrics::AdapterMetrics,
-    policies::{CLEANUP_RETRY, DEFAULT_RETRY, RetryConfig, WRITE_RETRY, with_retry},
+    policies::{CLEANUP_RETRY, DEFAULT_RETRY, GRACEFUL_STOP_RETRY, WRITE_RETRY, with_retry},
 };
 
 mod proto {
@@ -44,13 +44,6 @@ fn stop_mode_to_proto(m: &StopMode) -> proto::StopMode {
         StopMode::Graceful => proto::StopMode::Graceful,
     }
 }
-
-/// 1 attempt — used for stop_voice_session(mode=Graceful), which is NOT idempotent.
-const GRACEFUL_STOP_RETRY: RetryConfig = RetryConfig {
-    max_attempts: 1,
-    initial_backoff: std::time::Duration::from_millis(50),
-    max_backoff: std::time::Duration::from_secs(2),
-};
 
 fn telephony_from_proto(t: proto::TelephonyProto) -> Result<Telephony, VmError> {
     let id =

@@ -15,13 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     metrics::AdapterMetrics,
-    policies::{CLEANUP_RETRY, DEFAULT_RETRY, RetryConfig, WRITE_RETRY, with_retry},
-};
-
-const GRACEFUL_STOP_RETRY: RetryConfig = RetryConfig {
-    max_attempts: 1,
-    initial_backoff: std::time::Duration::from_millis(50),
-    max_backoff: std::time::Duration::from_secs(2),
+    policies::{CLEANUP_RETRY, DEFAULT_RETRY, GRACEFUL_STOP_RETRY, WRITE_RETRY, with_retry},
 };
 
 #[derive(Deserialize)]
