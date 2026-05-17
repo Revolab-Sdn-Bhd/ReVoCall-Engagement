@@ -36,7 +36,7 @@ grpc_health_probe -addr=localhost:8444                             # SERVING
 ## Environment variables
 
 | Var | Required? | Default | Purpose |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `EH_ENV` | yes | — | `dev` \| `staging` \| `production` |
 | `EH_REGISTRY_ADAPTER` | yes | — | `stub` \| `grpc` (only `stub` wired in T1-01) |
 | `EH_TRACK_0_IDLE_MODE` | no | `false` | When true, skip binding external gRPC `:8443` |

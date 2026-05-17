@@ -44,7 +44,7 @@ Single binary crate with three servers; adapter-kind metric ready for PRD §7 al
 ### Deferred
 
 | Item | Reason |
-|------|--------|
+| ------ | -------- |
 | `pg_indexes` assertions in migration test | Deferred to avoid brittle schema coupling |
 | Test isolation: wrap integration tests in `BEGIN`/`ROLLBACK` | Coordinate with T1 test infrastructure story |
 | SIGTERM → exit-0 explicit test | Needs subprocess harness improvements |

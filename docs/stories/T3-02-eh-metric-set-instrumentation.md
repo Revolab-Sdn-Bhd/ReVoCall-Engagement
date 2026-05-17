@@ -49,7 +49,7 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 **Histogram bucket boundaries (all in seconds):**
 
 | Metric | Buckets |
-|---|---|
+| --- | --- |
 | `startup_duration_seconds{stage}` | `[0.001, 0.010, 0.050, 0.100, 0.500, 1.0, 5.0]` |
 | `rpc_duration_seconds{rpc, code}` | `[0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5, 5.0]` |
 | `adapter_duration_seconds{target, method, code}` | `[0.001, 0.005, 0.010, 0.025, 0.050, 0.100, 0.250, 0.500, 1.0, 2.5]` |
@@ -63,7 +63,7 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 **Pre-initialized static label sets:**
 
 | Metric | Pre-seeded values |
-|---|---|
+| --- | --- |
 | `reconciler_backlog{class}` | `pending_engagement`, `orphan_compensation`, `pending_audit`, `overrun_live` |
 | `startup_duration_seconds{stage}` | `validate_and_commit`, `registry_resolve`, `route_resolved_commit`, `parallel_bind`, `invocation_requested_commit`, `audit` |
 | `orchestration_duration_seconds{stage}` | `start_engagement`, `stop_engagement`, `cancel_engagement`, `saga_compensation` |

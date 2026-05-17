@@ -53,7 +53,7 @@ Fully dynamic dispatch with no typed signatures.
 ### Deferred to T1-03
 
 | Item | Reason |
-|------|--------|
+| ------ | -------- |
 | `#[source]` error chaining | Let adapters pick transport error types first |
 | `std::sync::Mutex` → `tokio::sync::Mutex` | Guard never crosses `.await` today; safe to migrate with T1-03 |
 | `async_trait` → native AFIT | Migrate after T1-03 stabilises the API surface |

@@ -64,7 +64,7 @@ Story doc path references corrected: T2-03 acceptance criteria and T2-12 use `cl
 ### File map
 
 | Action | Path | Responsibility |
-|--------|------|----------------|
+| -------- | ------ | ---------------- |
 | Create | `buf.gen.yaml` | buf managed-mode codegen config |
 | Create | `clients/go/engagementhub/go.mod` | SDK Go module declaration |
 | Delete | `clients/go/engagementhub/.gitkeep` | Placeholder from T1-01 scaffold |

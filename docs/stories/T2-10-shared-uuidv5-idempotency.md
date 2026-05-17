@@ -55,7 +55,7 @@ Rust mirror signature is documented in `docs/rust-mirror/idempotency.md` (no Rus
 ### File map
 
 | Action | Path | Responsibility |
-|--------|------|----------------|
+| -------- | ------ | ---------------- |
 | Modify | `clients/go/engagementhub/go.mod` | Add `github.com/google/uuid` require |
 | Modify | `clients/go/engagementhub/go.sum` | Updated by `go get` |
 | Create | `clients/go/engagementhub/shared/idempotency/request_id.go` | `DeriveRequestID` + `NamespaceOutbound` |
