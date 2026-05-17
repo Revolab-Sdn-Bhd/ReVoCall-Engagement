@@ -128,11 +128,42 @@ impl JourneyManagerPort for JourneyManagerGrpcAdapter {
 
     async fn get_execution_timeline(
         &self,
-        _ref_: &ExecutionRef,
-        _opts: TimelineOpts,
+        ref_: &ExecutionRef,
+        opts: TimelineOpts,
     ) -> Result<Timeline, JmError> {
-        // Implemented in Task 12.
-        unimplemented!("see Task 12")
+        let client = self.client.clone();
+        let metrics = self.metrics.clone();
+        let request_id = Uuid::new_v4().to_string();
+        tracing::Span::current().record("adapter.request_id", request_id.as_str());
+        let ref_id = ref_.as_uuid().to_string();
+        let after = opts.after_sequence;
+
+        with_retry(DEFAULT_RETRY, None, "journey_manager", Some(&metrics), move || {
+            let mut c = client.clone();
+            let r = proto::GetExecutionTimelineRequest {
+                request_id: request_id.clone(),
+                execution_ref: Some(proto::ExecutionRefProto { id: ref_id.clone() }),
+                after_sequence: after,
+            };
+            async move {
+                c.get_execution_timeline(r)
+                    .await
+                    .map_err(map_status)
+                    .map(|resp| {
+                        let events = resp
+                            .into_inner()
+                            .events
+                            .into_iter()
+                            .map(|e| TimelineEvent {
+                                sequence: e.sequence,
+                                kind: e.kind,
+                            })
+                            .collect();
+                        Timeline { events }
+                    })
+            }
+        })
+        .await
     }
 }
 
@@ -414,5 +445,35 @@ mod tests {
             )
             .await;
         assert_eq!(*mock.counters.cancel.lock().unwrap(), 5);
+    }
+
+    // ── get_execution_timeline tests ──────────────────────────────────────────
+
+    #[tokio::test]
+    async fn get_execution_timeline_returns_events_in_order() {
+        let mock = Arc::new(MockJm {
+            create_result: Mutex::new(Err(Status::not_found("n/a"))),
+            cancel_result: Mutex::new(Ok(())),
+            timeline_result: Mutex::new(Ok(vec![
+                proto::TimelineEventProto { sequence: 1, kind: "node_entered".into() },
+                proto::TimelineEventProto { sequence: 2, kind: "node_exited".into() },
+            ])),
+            seen_request_ids: Mutex::new(vec![]),
+            counters: CallCounters::default(),
+        });
+        let adapter = JourneyManagerGrpcAdapter::new(
+            start_server(mock).await,
+            AdapterMetrics::for_test(),
+        );
+        let t = adapter
+            .get_execution_timeline(
+                &ExecutionRef::new(Uuid::new_v4()),
+                TimelineOpts { after_sequence: None },
+            )
+            .await
+            .expect("ok");
+        assert_eq!(t.events.len(), 2);
+        assert_eq!(t.events[0].sequence, 1);
+        assert_eq!(t.events[0].kind, "node_entered");
     }
 }
