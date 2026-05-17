@@ -13,7 +13,7 @@ var NamespaceOutbound = uuid.MustParse("ba40c89b-d320-47cd-aa7c-c05c3b24dd6a")
 // DeriveRequestID returns a deterministic UUIDv5 request_id for the given outbound
 // campaign attempt. Derivation: UUIDv5(NamespaceOutbound, batchID+":"+contactNumber+":"+attemptNumber).
 // attemptNumber must be the plain decimal string of the attempt integer ("1", "2", ...).
-// Inputs must not contain ":". Panics if any argument is empty.
+// Panics if any argument is empty.
 func DeriveRequestID(batchID, contactNumber, attemptNumber string) string {
 	if batchID == "" || contactNumber == "" || attemptNumber == "" {
 		panic("idempotency.DeriveRequestID: all arguments must be non-empty")
