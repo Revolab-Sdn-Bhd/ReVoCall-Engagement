@@ -11,8 +11,11 @@ T3-01 established the OTEL trace pipeline. The `Metrics` struct currently holds 
 ### Options considered
 
 **Struct organisation — flat vs. grouped:**
+
 - *Grouped sub-structs by domain* (`RpcMetrics`, `LifecycleMetrics`, etc.): cleaner files but two-level call sites (`metrics.lifecycle.engagements_started`) and forces T1 story authors to know which domain group their metric lives in.
+
 - *Flat submodules with flat fields*: organised files, same flat call-site ergonomics as flat struct, but adds indirection for no real payoff at 28 metrics.
+
 - *Flat struct (chosen)*: all 28 fields on `Metrics`, `new()` grows to ~150 lines but is consistent with existing code. T1 call sites are `metrics.rpc_total.with_label_values(&[...]).inc()` — simplest possible.
 
 **Metrics export mechanism:**
@@ -26,10 +29,15 @@ PRD §10.4 lists it under Histograms; PRD prose (line 1934) calls it "gauge per 
 Flat struct (Approach A). All 28 metrics added to the existing `Metrics` struct in `metrics.rs`. Prometheus scrape path — no OTLP metrics. `listen_notify_consumer_lag_events` deferred to T1-09.
 
 T3-02 owns:
+
 1. The canonical `Metrics` struct with all 28 metrics registered
+
 2. Histogram bucket boundaries (documented below)
+
 3. Pre-initialization of static label sets so all series appear at zero on first scrape
+
 4. Five unit tests (counters registered, histograms registered, gauges registered, static series at zero, no `organization_id` label)
+
 5. Kustomize PR: add `engagement-hub` namespace to Alloy scrape list + named `metrics` port
 
 T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-03 DoD).
@@ -62,11 +70,17 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 | `otel_exporter_dropped_spans_total{exporter}` | `grafana`, `langfuse`, `local` (already done — regression guard only) |
 
 **Prometheus type choices:**
+
 - Zero-label counters → `IntCounter`
+
 - Labeled counters → `IntCounterVec`
+
 - Zero-label histograms → `Histogram`
+
 - Labeled histograms → `HistogramVec`
+
 - Zero-label gauges → `IntGauge`
+
 - Labeled gauges → `IntGaugeVec`
 
 ### Tasks
@@ -74,10 +88,15 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 > **For agentic workers:** use `superpowers:subagent-driven-development` + `superpowers:test-driven-development` to implement task-by-task.
 
 - [x] Task 1: Write 5 failing tests — `0a3dc57`
+
 - [x] Task 2: Add 13 counter fields (including existing) — `76a9d5e`
+
 - [x] Task 3: Add 9 histogram fields with bucket boundaries and stage pre-init — `de367f1`
+
 - [x] Task 4: Add 6 gauge fields + reconciler_backlog pre-init — `e856831`
+
 - [x] Task 5: Full test run, smoke build, comment fixes, story doc update — `7089754`
+
 - [x] Task 6: Kustomize PR (chunzhe/test in RevoCall-Kustomize) + T7-01 comment — `2cbfa0f`
 
 ---
@@ -85,6 +104,7 @@ T3-02 does NOT own call sites (T1 stories) or the 100-engagement load test (T3-0
 #### Task 1 — Write all 5 failing tests (TDD red phase)
 
 **Files:**
+
 - Modify: `crates/engagement-hub/src/metrics.rs` (replace existing `mod tests` block)
 
 - [ ] **Step 1.1 — Replace the `mod tests` block** with the full 5-test suite below. The two existing tests (`active_kind_has_all_three_labels`, `dropped_spans_counter_registered_with_all_labels`) are preserved inside the block.
@@ -276,6 +296,7 @@ git commit -m "test(t3-02): write 5 failing metric-surface tests"
 #### Task 2 — Add 12 new counter fields (green: `all_counters_registered`)
 
 **Files:**
+
 - Modify: `crates/engagement-hub/src/metrics.rs`
 
 - [ ] **Step 2.1 — Update the `use` line** at the top of `metrics.rs`:
@@ -446,6 +467,7 @@ git commit -m "feat(t3-02): register all 13 counters"
 #### Task 3 — Add 9 histogram fields (green: `all_histograms_registered`)
 
 **Files:**
+
 - Modify: `crates/engagement-hub/src/metrics.rs`
 
 - [ ] **Step 3.1 — Update the `use` line** to add histogram types:
@@ -635,6 +657,7 @@ git commit -m "feat(t3-02): register all 9 histograms with bucket boundaries and
 #### Task 4 — Add 6 gauge fields + pre-init (all 5 tests green)
 
 **Files:**
+
 - Modify: `crates/engagement-hub/src/metrics.rs`
 
 - [ ] **Step 4.1 — Update the `use` line** to add gauge types:
@@ -774,6 +797,7 @@ git commit -m "feat(t3-02): register all 6 gauges and pre-initialize static seri
 #### Task 5 — Full test run + smoke build + story doc update
 
 **Files:**
+
 - Modify: `docs/stories/T3-02-eh-metric-set-instrumentation.md`
 
 - [ ] **Step 5.1 — Run the full test suite to confirm no regressions**
@@ -806,6 +830,7 @@ git commit -m "docs: add implementation plan to story doc #33"
 #### Task 6 — Kustomize PR (separate PR to `RevoCall-Kustomize`)
 
 **Files (in `RevoCall-Kustomize` repo):**
+
 - Modify: `staging-001/infrastructure/grafana-alloy/config.hcl`
 
 - [ ] **Step 6.1 — Change directory to the Kustomize repo**
@@ -841,11 +866,15 @@ gh pr create \
   --title "feat: add engagement-hub to Alloy Prometheus scrape namespaces" \
   --body "$(cat <<'EOF'
 ## Summary
+
 - Adds `engagement-hub` to the namespace list in `grafana-alloy/config.hcl` so Alloy's pod-discovery scrape rule picks up EH pods once T7-01 ships the Deployment.
+
 - Alloy keeps only pods with `containerPort.name = metrics` — T7-01 must include `name: metrics` on containerPort 9090 in the Deployment spec for scrape to activate.
 
 ## Dependency
+
 - T7-01 (#XX) must name the container port `metrics` at 9090 for scrape to activate.
+
 - Can merge independently; no harm done before T7-01 ships (namespace has no pods yet).
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -868,9 +897,15 @@ gh issue comment 62 \
 ### Deferred
 
 - `listen_notify_consumer_lag_events` — classification (histogram vs gauge) and emission owned by T1-09
+
 - `metrics.rpc_total.inc(...)` call sites in query/control RPC handlers — T1-10, T1-11, T1-12 (comments left on those issues)
+
 - `active_engagements`, `in_flight_invocations` gauge set/dec in lifecycle transitions — T1-06, T1-11
+
 - `db_pool_in_use / idle` wired to sqlx pool telemetry — T1-05 or T1-06
+
 - 100-engagement load test with real values — T3-03 DoD
+
 - Dashboard JSON — T3-03
+
 - Alert rules + recording rules — T3-04
