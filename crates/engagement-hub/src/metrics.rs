@@ -23,7 +23,7 @@ pub struct Metrics {
     pub audit_insert_failures_total: IntCounter,
     pub listen_notify_reconnects_total: IntCounter,
     pub db_failover_detected_total: IntCounter,
-    // --- Histograms --- (9 of 10 per PRD §10.4; listen_notify_consumer_lag_events deferred to T1-09)
+    // --- Histograms --- (10 of 10 per PRD §10.4; listen_notify_consumer_lag_events added in T1-09)
     pub rpc_duration_seconds: HistogramVec,
     pub adapter_duration_seconds: HistogramVec,
     pub orchestration_duration_seconds: HistogramVec,
@@ -40,6 +40,9 @@ pub struct Metrics {
     pub db_pool_in_use: IntGauge, // driven by pool observer task — TODO: assign to a T1 story
     pub db_pool_idle: IntGauge,   // driven by pool observer task — TODO: assign to a T1 story
     pub reconciler_backlog: IntGaugeVec,
+    /// Estimated number of events received from LISTEN/NOTIFY but not yet
+    /// delivered to subscribers (gauge).  T1-09.
+    pub consumer_lag_events: IntGauge,
 }
 
 impl Metrics {
@@ -175,7 +178,7 @@ impl Metrics {
         )?;
         registry.register(Box::new(db_failover_detected_total.clone()))?;
 
-        // --- Histograms --- (9 of 10 per PRD §10.4; listen_notify_consumer_lag_events deferred to T1-09)
+        // --- Histograms --- (10 of 10 per PRD §10.4; listen_notify_consumer_lag_events added in T1-09)
         let rpc_duration_seconds = HistogramVec::new(
             HistogramOpts::new(
                 "engagementhub_rpc_duration_seconds",
@@ -351,6 +354,12 @@ impl Metrics {
             reconciler_backlog.with_label_values(&[class]);
         }
 
+        let consumer_lag_events = IntGauge::new(
+            "engagementhub_consumer_lag_events",
+            "Estimated number of events received by LISTEN/NOTIFY but not yet delivered to subscribers",
+        )?;
+        registry.register(Box::new(consumer_lag_events.clone()))?;
+
         Ok(Self {
             registry,
             registry_adapter_kind,
@@ -382,6 +391,7 @@ impl Metrics {
             db_pool_in_use,
             db_pool_idle,
             reconciler_backlog,
+            consumer_lag_events,
         })
     }
 
@@ -483,6 +493,7 @@ mod tests {
             "engagementhub_db_pool_idle",
             "engagementhub_reconciler_backlog",
             "engagementhub_registry_adapter_kind",
+            "engagementhub_consumer_lag_events",
         ] {
             assert!(
                 text.contains(&format!("# HELP {name} ")),
