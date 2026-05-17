@@ -35,6 +35,14 @@ func TestDeriveRequestID_CrossContactCollision(t *testing.T) {
 	}
 }
 
+func TestDeriveRequestID_CrossBatchCollision(t *testing.T) {
+	b1 := idempotency.DeriveRequestID("batch-123", "+60126013446", "1")
+	b2 := idempotency.DeriveRequestID("batch-124", "+60126013446", "1")
+	if b1 == b2 {
+		t.Fatalf("different batches produced the same UUID: %s", b1)
+	}
+}
+
 func TestDeriveRequestID_RFC4122Format(t *testing.T) {
 	got := idempotency.DeriveRequestID("batch-abc", "+60126013446", "1")
 	if !uuidRE.MatchString(got) {
