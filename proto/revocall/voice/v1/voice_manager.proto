@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package revocall.voice.v1;
+
+service VoiceManager {
+  rpc StartVoiceSession(StartVoiceSessionRequest) returns (StartVoiceSessionResponse);
+  rpc StopVoiceSession(StopVoiceSessionRequest) returns (StopVoiceSessionResponse);
+  rpc IssueTestToken(IssueTestTokenRequest) returns (IssueTestTokenResponse);
+
+  rpc CreateTelephony(CreateTelephonyRequest) returns (CreateTelephonyResponse);
+  rpc ListTelephonies(ListTelephoniesRequest) returns (ListTelephoniesResponse);
+  rpc GetTelephony(GetTelephonyRequest) returns (GetTelephonyResponse);
+  rpc UpdateTelephony(UpdateTelephonyRequest) returns (UpdateTelephonyResponse);
+  rpc DeleteTelephony(DeleteTelephonyRequest) returns (DeleteTelephonyResponse);
+}
+
+// ---- Voice session ----
+
+message StartVoiceSessionRequest {
+  string request_id = 1;
+  string engagement_id = 2;
+  string org_id = 3;
+}
+
+message StartVoiceSessionResponse {
+  VoiceSessionRefProto session_ref = 1;
+}
+
+message VoiceSessionRefProto {
+  string id = 1;  // UUID string
+}
+
+message StopVoiceSessionRequest {
+  string request_id = 1;
+  VoiceSessionRefProto session_ref = 2;
+  StopMode mode = 3;
+}
+
+enum StopMode {
+  STOP_MODE_UNSPECIFIED = 0;
+  STOP_MODE_ABORT = 1;
+  STOP_MODE_GRACEFUL = 2;
+}
+
+message StopVoiceSessionResponse {}
+
+// ---- Test token ----
+
+message IssueTestTokenRequest {
+  string request_id = 1;
+  string org_id = 2;
+}
+
+message IssueTestTokenResponse {
+  string token = 1;
+}
+
+// ---- Telephony CRUD ----
+
+message TelephonyProto {
+  string id = 1;       // UUID string
+  string org_id = 2;
+  string phone_number = 3;
+}
+
+message CreateTelephonyRequest {
+  string request_id = 1;
+  string org_id = 2;
+  string phone_number = 3;
+}
+
+message CreateTelephonyResponse {
+  TelephonyProto telephony = 1;
+}
+
+message ListTelephoniesRequest {
+  string request_id = 1;
+  string org_id = 2;
+  optional string page_token = 3;
+}
+
+message ListTelephoniesResponse {
+  repeated TelephonyProto telephonies = 1;
+}
+
+message GetTelephonyRequest {
+  string request_id = 1;
+  string telephony_id = 2;
+}
+
+message GetTelephonyResponse {
+  TelephonyProto telephony = 1;
+}
+
+message UpdateTelephonyRequest {
+  string request_id = 1;
+  string telephony_id = 2;
+  string phone_number = 3;
+}
+
+message UpdateTelephonyResponse {
+  TelephonyProto telephony = 1;
+}
+
+message DeleteTelephonyRequest {
+  string request_id = 1;
+  string telephony_id = 2;
+  string usage = 3;
+}
+
+message DeleteTelephonyResponse {}
