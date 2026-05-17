@@ -38,7 +38,7 @@ use tokio::{
         Mutex,
         broadcast::{self, Receiver, Sender},
     },
-    time::{interval, sleep, timeout},
+    time::{interval, sleep},
 };
 use uuid::Uuid;
 
@@ -48,7 +48,7 @@ use crate::metrics::Metrics;
 // Public types
 // ---------------------------------------------------------------------------
 
-/// Payload carried by each PostgreSQL `pg_notify('engagement_events', …)` call.
+/// Payload carried by each PostgreSQL `pg_notify('engagement_events', ...)` call.
 ///
 /// Serialized size is well under the 200-byte limit specified in the PRD.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -58,7 +58,7 @@ pub struct NotifyPayload {
     pub batch_id: Option<Uuid>,
     /// Per-engagement monotonic sequence number.  Use this as the resume cursor.
     pub sequence: i64,
-    /// Global BIGSERIAL — use for cross-engagement ordering.
+    /// Global BIGSERIAL -- use for cross-engagement ordering.
     pub event_pk: i64,
     pub event_type: i16,
     pub traceparent: Option<String>,
@@ -69,14 +69,11 @@ pub struct NotifyPayload {
 // sequence cursor.
 const CHANNEL_CAP: usize = 256;
 
-// Health-check interval (SELECT 1 on the LISTEN connection).
+// Health-check: send a keepalive query on the LISTEN connection every 10s.
 const HEALTH_INTERVAL: Duration = Duration::from_secs(10);
 
-// Delay before the first reconnect attempt after detecting a failure.
-// Kept short so the PRD's "<5s reconnect" guarantee holds even in the
-// worst case (10s health-check interval + 5s try_recv timeout + this delay).
-// Exponential backoff only applies when the reconnect attempt itself fails.
-const RECONNECT_DELAY: Duration = Duration::from_millis(100);
+// Delay before retrying a failed reconnect.
+const RECONNECT_DELAY: Duration = Duration::from_millis(200);
 
 // ---------------------------------------------------------------------------
 // Subscriber registry
@@ -132,19 +129,20 @@ impl Registry {
         }
 
         // Fan out to batch subscribers.
-        if let Some(batch_id) = payload.batch_id {
-            if let Some(senders) = inner.by_batch.get_mut(&batch_id) {
-                senders.retain(|tx| tx.send(payload.clone()).is_ok());
-                if senders.is_empty() {
-                    inner.by_batch.remove(&batch_id);
-                }
+        if let Some(batch_id) = payload.batch_id
+            && let Some(senders) = inner.by_batch.get_mut(&batch_id)
+        {
+            senders.retain(|tx| tx.send(payload.clone()).is_ok());
+            if senders.is_empty() {
+                inner.by_batch.remove(&batch_id);
             }
         }
     }
 
     /// Count total messages queued across all active subscriber channels.
-    /// Used for the `consumer_lag_events` gauge: non-zero means at least one
-    /// subscriber is behind and has undelivered events buffered in its channel.
+    ///
+    /// Used for the `consumer_lag_events` gauge: a non-zero value means at
+    /// least one subscriber is behind and has undelivered events buffered.
     pub async fn queued_event_count(&self) -> usize {
         let inner = self.inner.lock().await;
         inner
@@ -179,7 +177,7 @@ struct GapRow {
 }
 
 /// Fetch events for `engagement_id` with `sequence > last_seen` and fan them
-/// out to subscribers.
+/// out to subscribers.  Ordered by `sequence ASC` -- never by `occurred_at`.
 async fn gap_fill_engagement(
     pool: &PgPool,
     engagement_id: Uuid,
@@ -232,13 +230,16 @@ async fn gap_fill_engagement(
 /// Open a dedicated `PgListener` (single-connection internal pool, separate
 /// from the main application pool) and subscribe to the `engagement_events`
 /// channel.
+///
+/// `eager_reconnect(false)` disables transparent auto-reconnect so the manager
+/// loop can detect failures, increment the reconnect metric, and replay gaps.
 async fn connect_and_listen(database_url: &str) -> Result<PgListener> {
     let mut listener = PgListener::connect(database_url)
         .await
         .context("failed to open LISTEN connection")?;
 
     // Disable eager auto-reconnect so we control reconnect timing and can
-    // increment the metric on each reconnect event.
+    // increment the metric and trigger gap-fill on each reconnect.
     listener.eager_reconnect(false);
 
     listener
@@ -267,7 +268,7 @@ pub struct ListenNotifyManager {
     registry: Registry,
     metrics: Arc<Metrics>,
     /// Optional oneshot sender to notify callers when the first LISTEN
-    /// connection is established.  Set via [`ListenNotifyManager::with_connected_signal`].
+    /// connection is established.
     connected_tx: Option<tokio::sync::oneshot::Sender<()>>,
 }
 
@@ -283,18 +284,8 @@ impl ListenNotifyManager {
     }
 
     /// Attach a oneshot sender that fires once the initial LISTEN connection is
-    /// established.  Useful in tests to avoid relying on arbitrary sleep durations.
-    ///
-    /// ```no_run
-    /// let (tx, rx) = tokio::sync::oneshot::channel();
-    /// let manager = manager.with_connected_signal(tx);
-    /// tokio::spawn(manager.run(shutdown_rx));
-    /// rx.await.unwrap(); // blocks until LISTEN is registered
-    /// ```
-    pub fn with_connected_signal(
-        mut self,
-        tx: tokio::sync::oneshot::Sender<()>,
-    ) -> Self {
+    /// established.  Useful in tests to avoid sleeping for an arbitrary duration.
+    pub fn with_connected_signal(mut self, tx: tokio::sync::oneshot::Sender<()>) -> Self {
         self.connected_tx = Some(tx);
         self
     }
@@ -311,15 +302,17 @@ impl ListenNotifyManager {
 
     /// Perform a gap-fill for `engagement_id` starting from `last_seen_sequence`.
     ///
-    /// Subscribers **must** call this after reconnecting to avoid lost events.
-    /// Resume by using `sequence > last_seen_sequence` — never rely on
-    /// `occurred_at`.
-    pub async fn gap_fill(
-        &self,
-        engagement_id: Uuid,
-        last_seen_sequence: i64,
-    ) -> Result<()> {
-        gap_fill_engagement(&self.pool, engagement_id, last_seen_sequence, &self.registry).await
+    /// Subscribers MUST call this after reconnecting to avoid lost events.
+    /// Use `sequence > last_seen_sequence` as the resume cursor -- never
+    /// rely on `occurred_at`.
+    pub async fn gap_fill(&self, engagement_id: Uuid, last_seen_sequence: i64) -> Result<()> {
+        gap_fill_engagement(
+            &self.pool,
+            engagement_id,
+            last_seen_sequence,
+            &self.registry,
+        )
+        .await
     }
 
     /// Run the manager loop.  This is a long-running async task; spawn with
@@ -337,7 +330,7 @@ impl ListenNotifyManager {
             let mut listener = match conn_result {
                 Ok(l) => l,
                 Err(e) => {
-                    tracing::error!(err = %e, "LISTEN connection failed; retrying in 5s");
+                    tracing::error!(err = %e, "LISTEN connection failed; retrying");
                     self.metrics.listen_notify_reconnects_total.inc();
                     tokio::select! {
                         _ = sleep(RECONNECT_DELAY) => continue,
@@ -349,15 +342,25 @@ impl ListenNotifyManager {
                 }
             };
 
-            // Signal any waiting caller that the LISTEN connection is ready.
-            // This fires only on the first successful connect.
+            // Notify any waiting caller that the LISTEN connection is ready.
             if let Some(tx) = self.connected_tx.take() {
                 let _ = tx.send(());
             }
 
             // Drive the LISTEN loop.
+            //
+            // Health-check: every HEALTH_INTERVAL, call try_recv() on the
+            // connection.  This both checks liveness AND drains any buffered
+            // notifications.  If try_recv() returns a notification, it is
+            // processed normally rather than discarded.
+            //
+            // The interval starts AFTER connect and we consume the first
+            // immediate tick right away so the first real health check fires
+            // after HEALTH_INTERVAL, not at t=0.  This lets recv() be
+            // selected first in the main select! below.
             let mut health_tick = interval(HEALTH_INTERVAL);
             health_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            health_tick.tick().await; // consume the initial immediate tick
 
             let mut disconnected = false;
 
@@ -369,22 +372,20 @@ impl ListenNotifyManager {
                         return;
                     }
 
-                    // Health-check ping (SELECT 1)
+                    // Health-check ping
                     _ = health_tick.tick() => {
-                        // try_recv with a short timeout acts as a keepalive probe.
-                        // If the connection is dead, recv() will surface an error.
-                        let ping = timeout(Duration::from_secs(5), listener.try_recv()).await;
-                        match ping {
-                            Ok(Ok(_)) => {
-                                // Either got a notification or None (no pending) — either is fine.
+                        // try_recv() is non-blocking; if a notification is
+                        // pending, process it rather than discarding it.
+                        match listener.try_recv().await {
+                            Ok(Some(notif)) => {
+                                tracing::debug!("LISTEN health-check received a buffered notification");
+                                self.handle_notification(notif).await;
+                            }
+                            Ok(None) => {
                                 tracing::debug!("LISTEN connection health-check OK");
                             }
-                            Ok(Err(e)) => {
+                            Err(e) => {
                                 tracing::warn!(err = %e, "LISTEN connection health-check failed; reconnecting");
-                                disconnected = true;
-                            }
-                            Err(_elapsed) => {
-                                tracing::warn!("LISTEN connection health-check timed out; reconnecting");
                                 disconnected = true;
                             }
                         }
@@ -393,7 +394,7 @@ impl ListenNotifyManager {
                         }
                     }
 
-                    // Wait for the next notification
+                    // Wait for the next notification (blocking)
                     result = listener.recv() => {
                         match result {
                             Err(e) => {
@@ -410,7 +411,7 @@ impl ListenNotifyManager {
             }
 
             if disconnected {
-                tracing::info!("LISTEN/NOTIFY reconnecting in 5s…");
+                tracing::info!("LISTEN/NOTIFY reconnecting...");
                 self.metrics.listen_notify_reconnects_total.inc();
                 tokio::select! {
                     _ = sleep(RECONNECT_DELAY) => {}
@@ -432,6 +433,7 @@ impl ListenNotifyManager {
 
         match serde_json::from_str::<NotifyPayload>(payload_str) {
             Ok(payload) => {
+                // Update the consumer-lag gauge.
                 let lag = self.registry.queued_event_count().await as i64;
                 self.metrics.consumer_lag_events.set(lag);
                 self.registry.fanout(&payload).await;
@@ -468,9 +470,7 @@ mod tests {
             sequence: 42,
             event_pk: 1001,
             event_type: 3,
-            traceparent: Some(
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into(),
-            ),
+            traceparent: Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into()),
         };
 
         let json = serde_json::to_string(&original).expect("serialize");
@@ -497,10 +497,8 @@ mod tests {
 
     #[test]
     fn payload_json_size_under_200_bytes_typical_case() {
-        // PRD §11 requires the NOTIFY payload to be < 200 bytes for the typical
+        // PRD 11 requires the NOTIFY payload to be < 200 bytes for the typical
         // case (small sequence numbers, single-digit event types, no traceparent).
-        // The worst-case absolute maximum (all fields at max length) is ~298 bytes;
-        // see the `payload_json_size_worst_case_documented` test below.
         let payload = NotifyPayload {
             engagement_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
             organization_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap(),
@@ -520,14 +518,8 @@ mod tests {
 
     #[test]
     fn payload_json_size_worst_case_documented() {
-        // This test documents the worst-case payload size when all fields are
-        // at maximum length (all 3 UUIDs present, max i64 sequence/event_pk,
-        // max i16 event_type, and full W3C traceparent).
-        //
-        // The PRD 11 <200-byte constraint was written for the typical case
-        // (small integers, no traceparent).  The worst-case value is captured
-        // here so any future schema changes that grow the payload further are
-        // caught immediately.
+        // Documents the worst-case payload size (all fields at max length).
+        // The PRD 11 <200-byte constraint applies to the typical case only.
         let payload = NotifyPayload {
             engagement_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
             organization_id: Uuid::parse_str("550e8400-e29b-41d4-a716-446655440001").unwrap(),
@@ -535,12 +527,9 @@ mod tests {
             sequence: 9_999_999_999,
             event_pk: 9_999_999_999,
             event_type: 32767,
-            traceparent: Some(
-                "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into(),
-            ),
+            traceparent: Some("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01".into()),
         };
         let json = serde_json::to_string(&payload).unwrap();
-        // Document the actual worst-case size; alert if something grows it further.
         assert!(
             json.len() < 400,
             "Worst-case NOTIFY payload unexpectedly large at {} bytes: {json}",
@@ -557,7 +546,6 @@ mod tests {
 
     #[test]
     fn payload_missing_required_field_is_error() {
-        // engagement_id is required; omitting it must produce an error.
         let json = r#"{"organization_id":"550e8400-e29b-41d4-a716-446655440001","sequence":1,"event_pk":1,"event_type":1}"#;
         let result = serde_json::from_str::<NotifyPayload>(json);
         assert!(
@@ -568,17 +556,11 @@ mod tests {
 
     /// Clock-skew test: two events share the same `occurred_at` but have
     /// distinct monotonically increasing `sequence` values.  The gap-fill
-    /// query orders by `sequence ASC`, so the subscriber must receive them
+    /// query orders by `sequence ASC`, so the subscriber receives them
     /// in sequence order regardless of wall-clock time.
-    ///
-    /// This is a logic test — it verifies that our gap-fill code does NOT
-    /// rely on `occurred_at` and instead returns rows in `sequence` order.
     #[test]
     fn sequence_order_is_independent_of_occurred_at() {
-        // Simulate two payloads that would have the same occurred_at if clock
-        // skew made them appear simultaneous.  The sequence cursor must still
-        // order them correctly.
-        let mut payloads = vec![
+        let mut payloads = [
             NotifyPayload {
                 engagement_id: Uuid::new_v4(),
                 organization_id: Uuid::new_v4(),
@@ -599,7 +581,6 @@ mod tests {
             },
         ];
 
-        // The gap-fill query sorts by sequence ASC.  Mirror that sort here.
         payloads.sort_by_key(|p| p.sequence);
 
         assert_eq!(payloads[0].sequence, 1);
@@ -673,7 +654,6 @@ mod tests {
 
         registry.fanout(&payload).await;
 
-        // Subscriber for `other_id` must receive nothing.
         assert!(rx.try_recv().is_err());
     }
 
@@ -683,7 +663,6 @@ mod tests {
         let engagement_id = Uuid::new_v4();
         {
             let _rx = registry.subscribe_engagement(engagement_id).await;
-            // _rx is dropped here — sender becomes dead.
         }
 
         let payload = NotifyPayload {
@@ -696,10 +675,8 @@ mod tests {
             traceparent: None,
         };
 
-        // Should not panic; dead sender must be pruned.
         registry.fanout(&payload).await;
 
-        // Verify the entry is gone.
         let inner = registry.inner.lock().await;
         assert!(!inner.by_engagement.contains_key(&engagement_id));
     }

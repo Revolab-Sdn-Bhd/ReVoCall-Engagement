@@ -17,7 +17,7 @@ subscribers receive events progressively rather than batched.
 
 ### Options considered
 
-**A. LISTEN/NOTIFY with dedicated persistent connection (chosen)**
+#### A. LISTEN/NOTIFY with dedicated persistent connection (chosen)
 
 Use `sqlx::PgListener` as a dedicated persistent connection (separate from the
 main pool). On each notification, parse the JSON payload and fan out to
@@ -25,13 +25,13 @@ subscribers via `tokio::sync::broadcast`. On reconnect, replay missed events
 from DB using `sequence > last_seen` per engagement. This is the approach
 specified in PRD §11.
 
-**B. Polling the DB on each replica**
+#### B. Polling the DB on each replica
 
 Each subscriber polls `engagement_events` on a fixed interval. Simpler but adds
 significant DB load (N subscribers × poll rate), introduces latency proportional
 to poll interval, and does not scale. Rejected.
 
-**C. Redis Pub/Sub or external message broker**
+#### C. Redis Pub/Sub or external message broker
 
 Adds operational complexity (another stateful service). Not aligned with the
 "Postgres-native where possible" philosophy for v1. Deferred consideration for
@@ -106,7 +106,7 @@ caller calls `gap_fill()` with the last-seen sequence to replay missed events.
 ### File map
 
 | Action | Path | Responsibility |
-|--------|------|----------------|
+| ------ | ---- | -------------- |
 | Create | `crates/engagement-hub/src/notify.rs` | `NotifyPayload`, `Registry`, `ListenNotifyManager`, gap-fill, unit tests |
 | Modify | `crates/engagement-hub/src/lib.rs` | Export `notify` module |
 | Modify | `crates/engagement-hub/src/main.rs` | Spawn `ListenNotifyManager` as background task |

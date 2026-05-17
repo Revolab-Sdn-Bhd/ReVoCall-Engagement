@@ -9,6 +9,7 @@ use engagement_hub::{
     },
     db,
     metrics::Metrics,
+    notify::ListenNotifyManager,
     server::{grpc, http},
     shutdown::{Shutdown, wait_for_signal},
     telemetry,
@@ -71,6 +72,16 @@ async fn main() -> Result<()> {
     });
 
     let shutdown = Shutdown::default();
+
+    // Spawn the LISTEN/NOTIFY fanout manager as a background task.
+    // It uses a dedicated connection (not the main pool) so LISTEN registrations
+    // are never silently dropped by pool recycling.
+    let listen_manager =
+        ListenNotifyManager::new(cfg.database_url.clone(), pool.clone(), metrics.clone());
+    let listen_shutdown_rx = shutdown.shutdown_rx.clone();
+    let _listen_handle = tokio::spawn(async move {
+        listen_manager.run(listen_shutdown_rx).await;
+    });
 
     let mut grpc_servers = grpc::spawn(
         cfg.external_grpc_addr,
