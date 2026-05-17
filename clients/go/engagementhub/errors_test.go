@@ -218,10 +218,10 @@ func TestFromConnectError_UnwrapsThroughWrap(t *testing.T) {
 }
 
 // TestClassifiers_CoverAllCodes asserts that every non-UNSPECIFIED proto code
-// is classified by at least one of IsTransient / IsTerminal, OR is one of the
-// three codes (VoiceSessionRejected, JourneyExecutionRejected, CallEndedWithError)
-// intentionally classified as neither. If a new proto code is added without
-// updating the classifiers, this test fails.
+// is classified by at least one of IsTransient / IsTerminal, OR is in the
+// explicit intentionallyNeither set (pure client errors that aren't transient
+// and aren't terminal). If a new proto code is added without updating the
+// classifiers or this set, the test fails.
 func TestClassifiers_CoverAllCodes(t *testing.T) {
 	intentionallyNeither := map[eh.EngagementErrorCode]bool{
 		// Pure client errors: neither transient (retriable) nor terminal (never-succeed).
