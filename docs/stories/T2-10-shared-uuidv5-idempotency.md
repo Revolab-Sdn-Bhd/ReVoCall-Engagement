@@ -10,7 +10,7 @@ The EH `StartEngagement` RPC uses `request_id` for idempotency: the same `(batch
 
 ### Options considered
 
-**A. Sub-package inside the existing SDK module (chosen)**
+#### A. Sub-package inside the existing SDK module (chosen)
 
 Place `shared/idempotency/` inside `clients/go/engagementhub/` so it shares the same Go module. BatchTracker imports it with a local path; no new module management overhead. Rust callers document the mirrored signature but implement it themselves (T6 scope).
 
@@ -18,7 +18,7 @@ Place `shared/idempotency/` inside `clients/go/engagementhub/` so it shares the 
 
 Own `go.mod`, independently versioned. Only justified if non-SDK consumers (e.g. admin-backend without the full SDK) need this utility. No such caller exists today; adds module management cost for no gain.
 
-**C. Stdlib-only implementation (no new dependency)**
+#### C. Stdlib-only implementation (no new dependency)
 
 Manual SHA-1 + RFC 4122 byte layout. Zero new dep, but ~30 lines of fiddly bit-twiddling that is trivially covered by `github.com/google/uuid`. Not worth it.
 
@@ -265,7 +265,7 @@ git commit -m "feat(sdk/idempotency): add DeriveRequestID UUIDv5 package (#29)"
 
 - [ ] **Step 1: Create `docs/rust-mirror/idempotency.md` with this content**
 
-~~~markdown
+```markdown
 # Rust mirror: idempotency key derivation
 
 Go canonical: `clients/go/engagementhub/shared/idempotency`
@@ -307,7 +307,7 @@ The Rust implementation must produce identical UUIDs for identical inputs:
 | `batch-abc` | `+60126013446` | `1` | `03518426-c533-5d8f-bbb9-f8ad0c139ffb` |
 | `batch-abc` | `+60126013446` | `2` | `092e314e-4c2b-59d8-9991-1c438df81e2e` |
 | `batch-abc` | `+60126013447` | `1` | `49443967-f52d-512f-9934-03269b7e401c` |
-~~~
+```
 
 - [ ] **Step 2: Commit**
 
