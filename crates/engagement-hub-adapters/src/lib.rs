@@ -12,3 +12,5 @@ pub use registry_grpc::RegistryGrpcAdapter;
 pub mod registry_stub;
 #[cfg(feature = "registry-stub")]
 pub use registry_stub::RegistryStubAdapter;
+
+pub mod saga;
