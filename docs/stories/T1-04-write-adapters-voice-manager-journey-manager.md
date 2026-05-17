@@ -78,12 +78,12 @@ All requests carry `X-Request-Id: <uuid>`. Error envelope `{"error": {"code": ".
 
 **Option C — Two methods per concept (`stop_normal` vs `stop_cleanup`).** Verbose; trait surface doubles.
 
-**Decision: Option A.** PRD §12's "*.cancel / *.stop → 5 attempts (must clean up)" is universal — compensation, AdminCancelled, and reconciler callers all benefit from the same budget for free.
+**Decision: Option A.** PRD §12's "*.cancel /*.stop → 5 attempts (must clean up)" is universal — compensation, AdminCancelled, and reconciler callers all benefit from the same budget for free.
 
 **Retry policy table:**
 
 | Trait method | Policy | Rationale |
-|---|---|---|
+| --- | --- | --- |
 | `VoiceManager.start_voice_session` | `WRITE_RETRY` (2) | PRD §12: writes idempotent via request_id |
 | `VoiceManager.stop_voice_session` (mode=Abort) | `CLEANUP_RETRY` (5) | PRD §12: `*.stop → 5`; Abort is idempotent per the `StopMode::Abort` doc comment in `engagement-hub-ports/src/types.rs` |
 | `VoiceManager.stop_voice_session` (mode=Graceful) | 1 attempt (no retry) | The `StopMode::Graceful` doc comment in `types.rs` says "Not idempotent"; PRD's "5 attempts" rule cannot apply safely. Reconciler "Overrun LIVE" sweep calls this. Branch by mode inside the adapter. |
@@ -122,6 +122,7 @@ PRD §7 lines 873–877 mandates `engagementhub_saga_compensation_outcome_total{
 **Option A — Adapter increments (rejected).** Adapter doesn't know whether a `cancel_execution(reason=AdminCancelled)` is a compensation call. For `vm_stop`, `StopMode::Abort` is overloaded — used by compensation, by AdminCancelled, and by the reconciler's "Stuck INVOKING" sweep.
 
 **Option B — Orchestrator increments (chosen).** T1-06/T1-07 know the saga context. T1-04 ships:
+
 1. Counter registration in `AdapterMetrics::new` with zero-init for all 2 × 4 = 8 `{stage, result}` combinations (so series exist before the first real increment — dashboards/alerts that assume series presence don't break).
 2. Typed enums + a helper on `AdapterMetrics` so orchestrator code stays stringly-typed-label-free:
 
@@ -185,7 +186,7 @@ crates/engagement-hub-ports/
 ### Test strategy
 
 | Test | Tool | What it validates |
-|---|---|---|
+| --- | --- | --- |
 | gRPC adapter happy path | in-memory `tonic::Server` + mock | Request roundtrip, response decode |
 | HTTP adapter happy path | `wiremock` | Request roundtrip, response decode |
 | gRPC error code mapping | mock returns `Code::Unavailable`/`NotFound`/`InvalidArgument`/`Cancelled`/`Internal` | Each maps to the right `VmError`/`JmError` variant |
@@ -257,6 +258,7 @@ All commands run from `/Users/chunzhe/Projects/ReVoCall-Engagement.t1-04` (the w
 ### Task 1: Add `FromDeadline` trait + `DeadlineExceeded` variant to all error enums
 
 **Files:**
+
 - Modify: `crates/engagement-hub-ports/src/error.rs`
 
 - [ ] **Step 1: Add the `FromDeadline` trait next to `FromPanic`**
@@ -282,7 +284,7 @@ For each of `RegistryError`, `JmError`, `VmError`, `PostCallError`, `AnalyticsEr
     DeadlineExceeded,
 ```
 
-2. Add the `FromDeadline` impl:
+1. Add the `FromDeadline` impl:
 
 ```rust
 impl FromDeadline for RegistryError {
@@ -294,7 +296,7 @@ impl FromDeadline for RegistryError {
 
 (Repeat for `JmError`, `VmError`, `PostCallError`, `AnalyticsError` — replace the type name in each impl.)
 
-3. The existing `IsRetryable::is_retryable` impls must NOT match `DeadlineExceeded` as retryable. Their current shape is:
+1. The existing `IsRetryable::is_retryable` impls must NOT match `DeadlineExceeded` as retryable. Their current shape is:
 
 ```rust
 matches!(self, Self::Transient(_) | Self::Unavailable)
@@ -336,6 +338,7 @@ Refs #11"
 ### Task 2: Extend `with_retry` — deadline + sync-prefix panic safety + new RetryConfig consts
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/policies.rs`
 
 - [ ] **Step 1: Write the failing test for `WRITE_RETRY` and `CLEANUP_RETRY` consts**
@@ -593,6 +596,7 @@ Refs #11"
 ### Task 3: Migrate T1-03 callsites to the new `with_retry` signature
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/registry_grpc.rs`
 - Modify: `crates/engagement-hub-adapters/src/post_call_http.rs`
 - Modify: `crates/engagement-hub-adapters/src/analytics_http.rs`
@@ -668,6 +672,7 @@ Refs #11"
 ### Task 4: Add `saga.rs` module with `CompensationStage` / `CompensationOutcome`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/saga.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -798,6 +803,7 @@ Refs #11"
 ### Task 5: Extend `AdapterMetrics` with the saga counter (zero-init) + `record_compensation` helper
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/metrics.rs`
 
 - [ ] **Step 1: Write failing tests**
@@ -992,6 +998,7 @@ Refs #11"
 ### Task 6: Add `journey_manager.proto`
 
 **Files:**
+
 - Create: `proto/revocall/journey/v1/journey_manager.proto`
 
 - [ ] **Step 1: Write the proto file**
@@ -1080,6 +1087,7 @@ Refs #11"
 ### Task 7: Add `voice_manager.proto`
 
 **Files:**
+
 - Create: `proto/revocall/voice/v1/voice_manager.proto`
 
 - [ ] **Step 1: Write the proto file**
@@ -1217,6 +1225,7 @@ Refs #11"
 ### Task 8: Extend `build.rs` to compile the two new protos
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/build.rs`
 
 - [ ] **Step 1: Update `build.rs`**
@@ -1277,6 +1286,7 @@ Refs #11"
 ### Task 9: `JourneyManagerGrpcAdapter` skeleton + `map_status`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/journey_manager_grpc.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -1389,6 +1399,7 @@ Refs #11"
 ### Task 10: `JourneyManagerGrpcAdapter::create_execution` (TDD)
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/journey_manager_grpc.rs`
 
 - [ ] **Step 1: Write the mock + test harness inside the file's `tests` module**
@@ -1748,6 +1759,7 @@ Refs #11"
 ### Task 11: `JourneyManagerGrpcAdapter::cancel_execution` (TDD)
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/journey_manager_grpc.rs`
 
 - [ ] **Step 1: Write failing tests**
@@ -1847,6 +1859,7 @@ Refs #11"
 ### Task 12: `JourneyManagerGrpcAdapter::get_execution_timeline` (TDD)
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/journey_manager_grpc.rs`
 
 - [ ] **Step 1: Write failing test**
@@ -1947,6 +1960,7 @@ Refs #11"
 ### Task 13: JM cross-cutting tests — panic, deadline, cross-call request_id
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/journey_manager_grpc.rs`
 
 - [ ] **Step 1: Add cross-call request_id distinctness test**
@@ -2067,6 +2081,7 @@ Refs #11"
 ### Task 14: `VoiceManagerGrpcAdapter` skeleton + `map_status`
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/voice_manager_grpc.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -2192,6 +2207,7 @@ Refs #11"
 ### Task 15: VM gRPC trait impl — voice session + token + telephony CRUD (single task because tests share mock harness)
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/voice_manager_grpc.rs`
 
 This task is larger; tests and impl land together because all 8 methods share the mock server harness.
@@ -2774,6 +2790,7 @@ Refs #11"
 ### Task 16: `VoiceManagerHttpAdapter` — skeleton + helpers
 
 **Files:**
+
 - Create: `crates/engagement-hub-adapters/src/voice_manager_http.rs`
 - Modify: `crates/engagement-hub-adapters/src/lib.rs`
 
@@ -2979,6 +2996,7 @@ Refs #11"
 ### Task 17: VM HTTP — full `VoiceManagerPort` trait impl with wiremock tests
 
 **Files:**
+
 - Modify: `crates/engagement-hub-adapters/src/voice_manager_http.rs`
 
 - [ ] **Step 1: Implement the trait**
@@ -3514,4 +3532,3 @@ Expected: zero errors. If errors: `npx markdownlint-cli2 --fix <file>` then comm
 - **Saga counter increment + span event emission** — T1-04 ships registration, zero-init, and the typed helper. The actual increments and span events come from T1-06 (`StartEngagement` orchestrator) and T1-07 (compensation path).
 - **SDK-supplied request_id correlation** — T1-04's adapter-minted request_id is not stored in `engagement_audit` rows. If correlation becomes useful, the orchestrator can stamp it via tracing baggage in a follow-up.
 - **`Retry-After` HTTP header propagation** — PRD §12 mentions this end-to-end; T1-04 does not yet honour `Retry-After` from VM HTTP 503 responses. Tracked as a follow-up.
-
