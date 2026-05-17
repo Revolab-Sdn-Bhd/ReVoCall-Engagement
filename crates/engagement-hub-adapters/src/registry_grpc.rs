@@ -62,6 +62,7 @@ impl RegistryPort for RegistryGrpcAdapter {
         let metrics = self.metrics.clone();
         with_retry(
             REGISTRY_RESOLVE_RETRY,
+            None,
             "registry",
             Some(&metrics),
             move || {
@@ -95,7 +96,7 @@ impl RegistryPort for RegistryGrpcAdapter {
         let client = self.client.clone();
         let metrics = self.metrics.clone();
         let id_str = id.as_uuid().to_string();
-        with_retry(DEFAULT_RETRY, "registry", Some(&metrics), move || {
+        with_retry(DEFAULT_RETRY, None, "registry", Some(&metrics), move || {
             let mut c = client.clone();
             let req = proto::GetVoiceProfileRequest {
                 voice_profile_id: id_str.clone(),

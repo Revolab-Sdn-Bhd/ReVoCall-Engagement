@@ -7,7 +7,7 @@ use std::{
 use futures::FutureExt;
 use rand::Rng;
 
-use engagement_hub_ports::error::{FromPanic, IsRetryable};
+use engagement_hub_ports::error::{FromDeadline, FromPanic, IsRetryable};
 
 use crate::metrics::AdapterMetrics;
 
@@ -32,6 +32,22 @@ pub const REGISTRY_RESOLVE_RETRY: RetryConfig = RetryConfig {
 /// 3 attempts — default for PostCall, Analytics, and Registry.get_voice_profile.
 pub const DEFAULT_RETRY: RetryConfig = RetryConfig {
     max_attempts: 3,
+    initial_backoff: Duration::from_millis(50),
+    max_backoff: Duration::from_secs(2),
+};
+
+/// 2 attempts — used for write operations whose downstream idempotency comes
+/// from a per-call `request_id`. PRD §12: writes idempotent via request_id.
+pub const WRITE_RETRY: RetryConfig = RetryConfig {
+    max_attempts: 2,
+    initial_backoff: Duration::from_millis(50),
+    max_backoff: Duration::from_secs(2),
+};
+
+/// 5 attempts — used for cleanup operations (`*.stop`/`*.cancel`) that MUST
+/// clean up downstream resources. PRD §12 saga compensation budget.
+pub const CLEANUP_RETRY: RetryConfig = RetryConfig {
+    max_attempts: 5,
     initial_backoff: Duration::from_millis(50),
     max_backoff: Duration::from_secs(2),
 };
@@ -78,6 +94,7 @@ impl DeadlineContext {
 /// Retry counts are recorded to `metrics` if `Some`.
 pub async fn with_retry<F, Fut, T, E>(
     config: RetryConfig,
+    deadline: Option<&DeadlineContext>,
     target: &str,
     metrics: Option<&AdapterMetrics>,
     mut f: F,
@@ -85,7 +102,7 @@ pub async fn with_retry<F, Fut, T, E>(
 where
     F: FnMut() -> Fut,
     Fut: Future<Output = Result<T, E>> + Send,
-    E: IsRetryable + FromPanic + Send + 'static,
+    E: IsRetryable + FromPanic + FromDeadline + Send + 'static,
     T: Send + 'static,
 {
     debug_assert!(
@@ -94,10 +111,17 @@ where
     );
     let mut backoff = config.initial_backoff;
     for attempt in 0..config.max_attempts {
-        let result = AssertUnwindSafe(f())
-            .catch_unwind()
-            .await
-            .unwrap_or_else(|_| Err(E::from_panic()));
+        // Two-stage panic catch: first wrap the synchronous call to f() so a
+        // panic in the closure's sync prefix (e.g. proto request construction)
+        // is converted to E::from_panic(); then wrap the returned future so
+        // panics during polling are also caught.
+        let result = match std::panic::catch_unwind(AssertUnwindSafe(&mut f)) {
+            Ok(fut) => AssertUnwindSafe(fut)
+                .catch_unwind()
+                .await
+                .unwrap_or_else(|_| Err(E::from_panic())),
+            Err(_) => Err(E::from_panic()),
+        };
 
         match &result {
             Err(e) if e.is_retryable() && attempt + 1 < config.max_attempts => {
@@ -105,6 +129,17 @@ where
                     m.retries_total
                         .with_label_values(&[target, &(attempt + 1).to_string()])
                         .inc();
+                }
+                // Deadline gate before next attempt.
+                if let Some(d) = deadline {
+                    if d.is_too_close() {
+                        if let Some(m) = metrics {
+                            m.deadline_exceeded_total
+                                .with_label_values(&[target])
+                                .inc();
+                        }
+                        return Err(E::from_deadline());
+                    }
                 }
                 let jitter = rand::thread_rng().gen_range(Duration::ZERO..=backoff);
                 tokio::time::sleep(jitter).await;
@@ -133,6 +168,7 @@ mod tests {
         Transient,
         Permanent,
         Panic,
+        Deadline,
     }
     impl IsRetryable for E {
         fn is_retryable(&self) -> bool {
@@ -143,6 +179,9 @@ mod tests {
         fn from_panic() -> Self {
             Self::Panic
         }
+    }
+    impl FromDeadline for E {
+        fn from_deadline() -> Self { Self::Deadline }
     }
 
     fn no_sleep_config(max: u32) -> RetryConfig {
@@ -157,7 +196,7 @@ mod tests {
     async fn success_on_first_attempt() {
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
-        let r: Result<i32, E> = with_retry(no_sleep_config(3), "t", None, || {
+        let r: Result<i32, E> = with_retry(no_sleep_config(3), None, "t", None, || {
             let c = c.clone();
             async move {
                 c.fetch_add(1, Ordering::SeqCst);
@@ -173,7 +212,7 @@ mod tests {
     async fn retries_transient_then_succeeds() {
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
-        let r: Result<i32, E> = with_retry(no_sleep_config(3), "t", None, || {
+        let r: Result<i32, E> = with_retry(no_sleep_config(3), None, "t", None, || {
             let c = c.clone();
             async move {
                 let count = c.fetch_add(1, Ordering::SeqCst);
@@ -189,7 +228,7 @@ mod tests {
     async fn no_retry_on_permanent() {
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
-        let r: Result<i32, E> = with_retry(no_sleep_config(3), "t", None, || {
+        let r: Result<i32, E> = with_retry(no_sleep_config(3), None, "t", None, || {
             let c = c.clone();
             async move {
                 c.fetch_add(1, Ordering::SeqCst);
@@ -205,7 +244,7 @@ mod tests {
     async fn exhausts_all_attempts_on_persistent_transient() {
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
-        let r: Result<i32, E> = with_retry(no_sleep_config(3), "t", None, || {
+        let r: Result<i32, E> = with_retry(no_sleep_config(3), None, "t", None, || {
             let c = c.clone();
             async move {
                 c.fetch_add(1, Ordering::SeqCst);
@@ -219,7 +258,7 @@ mod tests {
 
     #[tokio::test]
     async fn catches_panic_and_returns_from_panic() {
-        let r: Result<i32, E> = with_retry(no_sleep_config(1), "t", None, || async move {
+        let r: Result<i32, E> = with_retry(no_sleep_config(1), None, "t", None, || async move {
             panic!("adapter panic")
         })
         .await;
@@ -231,7 +270,7 @@ mod tests {
         let m = crate::metrics::AdapterMetrics::for_test();
         let n = Arc::new(AtomicU32::new(0));
         let c = n.clone();
-        let _: Result<i32, E> = with_retry(no_sleep_config(3), "reg", Some(&m), || {
+        let _: Result<i32, E> = with_retry(no_sleep_config(3), None, "reg", Some(&m), || {
             let c = c.clone();
             async move {
                 c.fetch_add(1, Ordering::SeqCst);
@@ -260,5 +299,57 @@ mod tests {
     #[test]
     fn deadline_none_never_too_close() {
         assert!(!DeadlineContext::none().is_too_close());
+    }
+
+    #[test]
+    fn write_retry_is_two_attempts() {
+        assert_eq!(WRITE_RETRY.max_attempts, 2);
+    }
+
+    #[test]
+    fn cleanup_retry_is_five_attempts() {
+        assert_eq!(CLEANUP_RETRY.max_attempts, 5);
+    }
+
+    #[tokio::test]
+    async fn catches_panic_in_synchronous_closure_prefix() {
+        // The closure panics BEFORE returning a future. Today's with_retry
+        // (pre-T1-04) only wraps the returned future in catch_unwind, so this
+        // panic would escape. The fix wraps the call to f() itself.
+        let r: Result<i32, E> = with_retry(no_sleep_config(1), None, "t", None, || {
+            panic!("sync-prefix panic");
+            #[allow(unreachable_code)]
+            async move { Ok::<i32, E>(0) }
+        })
+        .await;
+        assert_eq!(r, Err(E::Panic));
+    }
+
+    #[tokio::test]
+    async fn deadline_too_close_short_circuits_before_next_attempt() {
+        let ctx = DeadlineContext::from_remaining(
+            Duration::from_millis(100),
+            Duration::from_secs(5),
+        );
+        // is_too_close()==true; first attempt should run, but no retry should be attempted.
+        let n = Arc::new(AtomicU32::new(0));
+        let c = n.clone();
+        let r: Result<i32, E> = with_retry(
+            no_sleep_config(3),
+            Some(&ctx),
+            "t",
+            None,
+            || {
+                let c = c.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    Err(E::Transient)
+                }
+            },
+        )
+        .await;
+        // First attempt ran, deadline check fires before attempt 2.
+        assert_eq!(n.load(Ordering::SeqCst), 1);
+        assert_eq!(r, Err(E::Deadline));
     }
 }

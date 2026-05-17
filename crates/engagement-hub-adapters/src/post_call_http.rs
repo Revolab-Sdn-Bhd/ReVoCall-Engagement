@@ -146,7 +146,7 @@ impl PostCallPort for PostCallHttpAdapter {
         let url = format!("{}/calls/{}/transcription", self.base_url, eng);
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "post_call", Some(&m), move || {
             let c = client.clone();
             let u = url.clone();
             async move {
@@ -173,7 +173,7 @@ impl PostCallPort for PostCallHttpAdapter {
         let url = format!("{}/calls/{}/summary", self.base_url, eng);
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "post_call", Some(&m), move || {
             let c = client.clone();
             let u = url.clone();
             async move {
@@ -195,7 +195,7 @@ impl PostCallPort for PostCallHttpAdapter {
         let url = format!("{}/calls/{}/sentiment", self.base_url, eng);
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "post_call", Some(&m), move || {
             let c = client.clone();
             let u = url.clone();
             async move {
@@ -219,7 +219,7 @@ impl PostCallPort for PostCallHttpAdapter {
         let url = format!("{}/calls/{}/state", self.base_url, eng);
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "post_call", Some(&m), move || {
             let c = client.clone();
             let u = url.clone();
             async move {
@@ -268,7 +268,7 @@ impl PostCallPort for PostCallHttpAdapter {
         }
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "post_call", Some(&m), move || {
             let c = client.clone();
             let base = base_url.clone();
             let params = qp.clone();
@@ -337,7 +337,7 @@ impl PostCallPort for PostCallHttpAdapter {
         }
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "post_call", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "post_call", Some(&m), move || {
             let c = client.clone();
             let base = base_url.clone();
             let params = qp.clone();

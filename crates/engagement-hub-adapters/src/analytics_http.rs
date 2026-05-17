@@ -101,7 +101,7 @@ impl AnalyticsPort for AnalyticsHttpAdapter {
         }
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "analytics", Some(&m), move || {
             let c = client.clone();
             let b = base.clone();
             let params = qp.clone();
@@ -153,7 +153,7 @@ impl AnalyticsPort for AnalyticsHttpAdapter {
         }
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "analytics", Some(&m), move || {
             let c = client.clone();
             let b = base.clone();
             let params = qp.clone();
@@ -206,7 +206,7 @@ impl AnalyticsPort for AnalyticsHttpAdapter {
         }
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "analytics", Some(&m), move || {
             let c = client.clone();
             let b = base.clone();
             let params = qp.clone();
@@ -261,7 +261,7 @@ impl AnalyticsPort for AnalyticsHttpAdapter {
         }
         let client = self.client.clone();
         let m = self.metrics.clone();
-        with_retry(DEFAULT_RETRY, "analytics", Some(&m), move || {
+        with_retry(DEFAULT_RETRY, None, "analytics", Some(&m), move || {
             let c = client.clone();
             let b = base.clone();
             let params = qp.clone();
