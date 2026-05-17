@@ -83,6 +83,11 @@ impl DeadlineContext {
         self.deadline
             .is_some_and(|d| d.saturating_duration_since(Instant::now()) < ADAPTER_FLOOR)
     }
+
+    /// Returns the remaining duration until the deadline, or None if no deadline is set.
+    pub fn remaining(&self) -> Option<Duration> {
+        self.deadline.map(|d| d.saturating_duration_since(Instant::now()))
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -130,14 +135,17 @@ where
                         .with_label_values(&[target, &(attempt + 1).to_string()])
                         .inc();
                 }
-                // Deadline gate before next attempt.
-                if let Some(d) = deadline
-                    && d.is_too_close()
-                {
-                    if let Some(m) = metrics {
-                        m.deadline_exceeded_total.with_label_values(&[target]).inc();
+                // Deadline gate before next attempt. Per PRD §12: refuse retry if
+                // remaining < (next backoff + adapter floor). is_too_close() handles
+                // the floor-only case; we add the backoff-aware check here.
+                if let Some(d) = deadline {
+                    let need = backoff + ADAPTER_FLOOR;
+                    if d.remaining().map_or(false, |r| r < need) {
+                        if let Some(m) = metrics {
+                            m.deadline_exceeded_total.with_label_values(&[target]).inc();
+                        }
+                        return Err(E::from_deadline());
                     }
-                    return Err(E::from_deadline());
                 }
                 let jitter = rand::thread_rng().gen_range(Duration::ZERO..=backoff);
                 tokio::time::sleep(jitter).await;
@@ -343,6 +351,40 @@ mod tests {
         })
         .await;
         // First attempt ran, deadline check fires before attempt 2.
+        assert_eq!(n.load(Ordering::SeqCst), 1);
+        assert_eq!(r, Err(E::Deadline));
+    }
+
+    #[tokio::test]
+    async fn deadline_gate_considers_next_backoff() {
+        // remaining = 250ms, adapter_floor = 200ms.
+        // First attempt sets backoff to 50ms initially; after attempt 1 fails, deadline check sees
+        // `need = 50ms + 200ms = 250ms`; remaining is right at boundary or below — fires.
+        let ctx = DeadlineContext::from_remaining(
+            Duration::from_millis(250),
+            Duration::from_secs(5),
+        );
+        let n = Arc::new(AtomicU32::new(0));
+        let c = n.clone();
+        let r: Result<i32, E> = with_retry(
+            RetryConfig {
+                max_attempts: 3,
+                initial_backoff: Duration::from_millis(50),
+                max_backoff: Duration::from_secs(2),
+            },
+            Some(&ctx),
+            "t",
+            None,
+            || {
+                let c = c.clone();
+                async move {
+                    c.fetch_add(1, Ordering::SeqCst);
+                    Err(E::Transient)
+                }
+            },
+        )
+        .await;
+        // First attempt ran, deadline check (50ms backoff + 200ms floor = 250ms need) fires.
         assert_eq!(n.load(Ordering::SeqCst), 1);
         assert_eq!(r, Err(E::Deadline));
     }
