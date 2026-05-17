@@ -8,6 +8,12 @@ pub trait FromPanic {
     fn from_panic() -> Self;
 }
 
+/// Implemented by error types that can represent a deadline-exceeded outcome
+/// from `with_retry` short-circuiting before the next attempt.
+pub trait FromDeadline {
+    fn from_deadline() -> Self;
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RegistryError {
     #[error("transient: {0}")]
@@ -18,6 +24,8 @@ pub enum RegistryError {
     Unavailable,
     #[error("internal panic in adapter")]
     InternalPanic,
+    #[error("deadline exceeded — refused retry")]
+    DeadlineExceeded,
 }
 
 impl IsRetryable for RegistryError {
@@ -28,6 +36,11 @@ impl IsRetryable for RegistryError {
 impl FromPanic for RegistryError {
     fn from_panic() -> Self {
         Self::InternalPanic
+    }
+}
+impl FromDeadline for RegistryError {
+    fn from_deadline() -> Self {
+        Self::DeadlineExceeded
     }
 }
 
@@ -41,6 +54,8 @@ pub enum JmError {
     Unavailable,
     #[error("internal panic in adapter")]
     InternalPanic,
+    #[error("deadline exceeded — refused retry")]
+    DeadlineExceeded,
 }
 
 impl IsRetryable for JmError {
@@ -51,6 +66,11 @@ impl IsRetryable for JmError {
 impl FromPanic for JmError {
     fn from_panic() -> Self {
         Self::InternalPanic
+    }
+}
+impl FromDeadline for JmError {
+    fn from_deadline() -> Self {
+        Self::DeadlineExceeded
     }
 }
 
@@ -64,6 +84,8 @@ pub enum VmError {
     Unavailable,
     #[error("internal panic in adapter")]
     InternalPanic,
+    #[error("deadline exceeded — refused retry")]
+    DeadlineExceeded,
 }
 
 impl IsRetryable for VmError {
@@ -74,6 +96,11 @@ impl IsRetryable for VmError {
 impl FromPanic for VmError {
     fn from_panic() -> Self {
         Self::InternalPanic
+    }
+}
+impl FromDeadline for VmError {
+    fn from_deadline() -> Self {
+        Self::DeadlineExceeded
     }
 }
 
@@ -87,6 +114,8 @@ pub enum PostCallError {
     Unavailable,
     #[error("internal panic in adapter")]
     InternalPanic,
+    #[error("deadline exceeded — refused retry")]
+    DeadlineExceeded,
 }
 
 impl IsRetryable for PostCallError {
@@ -97,6 +126,11 @@ impl IsRetryable for PostCallError {
 impl FromPanic for PostCallError {
     fn from_panic() -> Self {
         Self::InternalPanic
+    }
+}
+impl FromDeadline for PostCallError {
+    fn from_deadline() -> Self {
+        Self::DeadlineExceeded
     }
 }
 
@@ -110,6 +144,8 @@ pub enum AnalyticsError {
     Unavailable,
     #[error("internal panic in adapter")]
     InternalPanic,
+    #[error("deadline exceeded — refused retry")]
+    DeadlineExceeded,
 }
 
 impl IsRetryable for AnalyticsError {
@@ -120,5 +156,10 @@ impl IsRetryable for AnalyticsError {
 impl FromPanic for AnalyticsError {
     fn from_panic() -> Self {
         Self::InternalPanic
+    }
+}
+impl FromDeadline for AnalyticsError {
+    fn from_deadline() -> Self {
+        Self::DeadlineExceeded
     }
 }
