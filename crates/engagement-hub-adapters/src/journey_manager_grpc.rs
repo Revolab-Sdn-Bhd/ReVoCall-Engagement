@@ -476,4 +476,88 @@ mod tests {
         assert_eq!(t.events[0].sequence, 1);
         assert_eq!(t.events[0].kind, "node_entered");
     }
+
+    // ── cross-cutting tests ───────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn cross_call_request_ids_are_distinct() {
+        // Two consecutive calls on the same adapter instance must stamp different request_ids.
+        let mock = Arc::new(MockJm::always_ok_create(Uuid::new_v4()));
+        let adapter = JourneyManagerGrpcAdapter::new(
+            start_server(mock.clone()).await,
+            AdapterMetrics::for_test(),
+        );
+        let _ = adapter
+            .create_execution(CreateExecutionReq {
+                journey_version: "v1".into(),
+                org_id: "org-1".into(),
+                engagement_id: EngagementId::default(),
+            })
+            .await;
+        let _ = adapter
+            .cancel_execution(
+                &ExecutionRef::new(Uuid::new_v4()),
+                CancelReason::CompensateFailedBind,
+            )
+            .await;
+        let ids = mock.seen_request_ids.lock().unwrap();
+        assert_eq!(ids.len(), 2);
+        assert_ne!(ids[0], ids[1], "request_id must NOT be reused across method invocations");
+    }
+
+    struct SlowMockJm;
+
+    #[tonic::async_trait]
+    impl JmServer for SlowMockJm {
+        async fn create_execution(
+            &self,
+            _: Request<CreateExecutionRequest>,
+        ) -> Result<Response<CreateExecutionResponse>, Status> {
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            Ok(Response::new(CreateExecutionResponse {
+                execution_ref: Some(ExecutionRefProto { id: Uuid::new_v4().to_string() }),
+            }))
+        }
+        async fn cancel_execution(
+            &self,
+            _: Request<CancelExecutionRequest>,
+        ) -> Result<Response<CancelExecutionResponse>, Status> {
+            unimplemented!()
+        }
+        async fn get_execution_timeline(
+            &self,
+            _: Request<GetExecutionTimelineRequest>,
+        ) -> Result<Response<GetExecutionTimelineResponse>, Status> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn slow_downstream_does_not_hang_forever_when_caller_adds_timeout() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(
+            Server::builder()
+                .add_service(JourneyManagerServer::new(SlowMockJm))
+                .serve_with_incoming(TcpListenerStream::new(listener)),
+        );
+        let channel = Channel::from_shared(format!("http://{addr}"))
+            .unwrap()
+            .timeout(std::time::Duration::from_millis(200))
+            .connect()
+            .await
+            .unwrap();
+        let adapter = JourneyManagerGrpcAdapter::new(channel, AdapterMetrics::for_test());
+        let start = std::time::Instant::now();
+        let err = adapter
+            .create_execution(CreateExecutionReq {
+                journey_version: "v1".into(),
+                org_id: "org-1".into(),
+                engagement_id: EngagementId::default(),
+            })
+            .await
+            .expect_err("must time out, not succeed");
+        assert!(start.elapsed() < std::time::Duration::from_secs(2), "did not time out: {:?}", start.elapsed());
+        let _ = err;
+    }
 }
