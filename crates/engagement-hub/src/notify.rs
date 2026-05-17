@@ -72,8 +72,10 @@ const CHANNEL_CAP: usize = 256;
 // Health-check: send a keepalive query on the LISTEN connection every 10s.
 const HEALTH_INTERVAL: Duration = Duration::from_secs(10);
 
-// Delay before retrying a failed reconnect.
-const RECONNECT_DELAY: Duration = Duration::from_millis(200);
+// Delay before retrying a failed reconnect.  Kept short so the PRD's
+// "<5s reconnect" guarantee holds even in the worst case
+// (10s health-check interval + 5s try_recv timeout + this delay).
+const RECONNECT_DELAY: Duration = Duration::from_millis(100);
 
 // ---------------------------------------------------------------------------
 // Subscriber registry
@@ -433,10 +435,11 @@ impl ListenNotifyManager {
 
         match serde_json::from_str::<NotifyPayload>(payload_str) {
             Ok(payload) => {
-                // Update the consumer-lag gauge.
+                self.registry.fanout(&payload).await;
+                // Update the consumer-lag gauge AFTER fanout so the metric
+                // reflects the current buffered count, not the pre-fanout count.
                 let lag = self.registry.queued_event_count().await as i64;
                 self.metrics.consumer_lag_events.set(lag);
-                self.registry.fanout(&payload).await;
             }
             Err(e) => {
                 tracing::warn!(
