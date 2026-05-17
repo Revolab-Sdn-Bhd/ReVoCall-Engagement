@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package revocall.journey.v1;
+
+// JourneyManager is the gRPC contract Engagement Hub's
+// JourneyManagerGrpcAdapter calls into. Defined here so EH owns the
+// consumer contract; downstream services align to it.
+
+service JourneyManager {
+  rpc CreateExecution(CreateExecutionRequest) returns (CreateExecutionResponse);
+  rpc CancelExecution(CancelExecutionRequest) returns (CancelExecutionResponse);
+  rpc GetExecutionTimeline(GetExecutionTimelineRequest) returns (GetExecutionTimelineResponse);
+}
+
+message CreateExecutionRequest {
+  // Adapter-minted UUIDv4. Same id is stamped on every retry attempt
+  // within a single adapter call (downstream MUST dedup on this).
+  string request_id = 1;
+  string journey_version = 2;
+  string org_id = 3;
+  string engagement_id = 4;
+}
+
+message CreateExecutionResponse {
+  ExecutionRefProto execution_ref = 1;
+}
+
+message ExecutionRefProto {
+  string id = 1;  // UUID string
+}
+
+message CancelExecutionRequest {
+  string request_id = 1;
+  ExecutionRefProto execution_ref = 2;
+  CancelReason reason = 3;
+}
+
+enum CancelReason {
+  CANCEL_REASON_UNSPECIFIED = 0;
+  CANCEL_REASON_COMPENSATE_FAILED_BIND = 1;
+  CANCEL_REASON_USER_REQUESTED = 2;
+  CANCEL_REASON_ORCHESTRATOR_TIMEOUT = 3;
+  CANCEL_REASON_ADMIN_CANCELLED = 4;
+}
+
+message CancelExecutionResponse {}
+
+message GetExecutionTimelineRequest {
+  string request_id = 1;
+  ExecutionRefProto execution_ref = 2;
+  optional uint64 after_sequence = 3;
+}
+
+message GetExecutionTimelineResponse {
+  repeated TimelineEventProto events = 1;
+}
+
+message TimelineEventProto {
+  uint64 sequence = 1;
+  string kind = 2;
+}
